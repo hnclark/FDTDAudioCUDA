@@ -2,6 +2,7 @@
 #include<stdio.h>
 #include<cmath>
 #include<fstream>
+#include<chrono>
 
 
 
@@ -102,6 +103,9 @@ void writeTextRepr(const std::string& filename,bool *array){
 
 
 int main(int argc, const char * argv[]){
+    //start clock
+    auto startTime = std::chrono::high_resolution_clock::now();
+
     //time of simulation
     timeSteps = 1;
 
@@ -128,7 +132,7 @@ int main(int argc, const char * argv[]){
     cudaMemcpyToSymbol(*(&gridWidthBlocks_d),&gridWidthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridHeightBlocks_d),&gridHeightBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
 
-    printf("%d %d %d %d %d %d %d\n",gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,gridWidthBlocks,gridHeightBlocks);
+    printf("grid dim = %d x %d x %d\nblock dim = %d x %d\ngrid in blocks = %d x %d\n",gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,gridWidthBlocks,gridHeightBlocks);
 
     dim3 numBlocks(gridWidthBlocks*gridDepth,gridHeightBlocks,1);
     dim3 blockSize(blockWidth,blockHeight,1);
@@ -174,4 +178,9 @@ int main(int argc, const char * argv[]){
     //free device memory
     cudaFree(grid_d);
     cudaFree(grid1_d);
+
+    //end clock
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto timePassed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count();
+    printf("Ran in %ld ms\n",timePassed);
 }
