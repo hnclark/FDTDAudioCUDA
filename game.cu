@@ -7,8 +7,8 @@
 
 
 //shared host/device constants
-int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,gridWidthBlocks,gridHeightBlocks,gridArea;
-__constant__ int gridWidth_d,gridHeight_d,gridDepth_d,blockWidth_d,blockHeight_d,gridWidthBlocks_d,gridHeightBlocks_d;
+int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,blockDepth,gridWidthBlocks,gridHeightBlocks,gridDepthBlocks,gridArea;
+__constant__ int gridWidth_d,gridHeight_d,gridDepth_d,blockWidth_d,blockHeight_d,blockDepth_d,gridWidthBlocks_d,gridHeightBlocks_d,gridDepthBlocks_d;
 
 //host only constants
 int timeSteps;
@@ -22,9 +22,9 @@ __device__ int arrayPos(const int &x,const int &y,const int &z){
 
 
 __global__ void solver(bool *grid,bool *grid1){
-    int xpos = ((blockIdx.x%gridWidthBlocks_d)*blockWidth_d)+threadIdx.x;
+    int xpos = (blockIdx.x*blockWidth_d)+threadIdx.x;
     int ypos = (blockIdx.y*blockHeight_d)+threadIdx.y;
-    int zpos = blockIdx.x/gridWidthBlocks_d;
+    int zpos = (blockIdx.z*blockDepth_d)+threadIdx.z;
 
     if(xpos>0 && xpos<gridWidth_d-1 && ypos>0 && ypos<gridHeight_d-1 && zpos>0 && zpos<gridDepth_d-1){
         int neighbors = grid[arrayPos(xpos+1,ypos,zpos)]+grid[arrayPos(xpos-1,ypos,zpos)]
@@ -107,20 +107,52 @@ int main(int argc, const char * argv[]){
     auto startTime = std::chrono::high_resolution_clock::now();
 
     //time of simulation
-    timeSteps = 1;
+    timeSteps = 100;
 
     //dimensions of the grid
-    gridWidth = 16;
-    gridHeight = 16;
-    gridDepth = 16;
+    gridWidth = 2048;
+    gridHeight = 2048;
+    gridDepth = 128;
 
-    //find the most efficient block_width/height for the kernel(probably 16x16)
+    /*
+    Speed testing with varying grid and block sizes, using both 3D and 2D kernel implementations
+        16x16x16 grid, 2mil steps:
+            3D Kernel
+            16x16x1 = 18921ms
+            8x8x16  = 21150ms
+            8x8x8   = 19432ms
+            4x4x4   = 21614ms
+            2x2x2   = 24362ms
+
+            2D Kernel
+            16x16   = 19389ms
+            8x8     = 19425ms
+            4x4     = 19992ms
+
+        64x64x64 grid, 2mil steps:
+            3D Kernel
+            16x16x1 = 44162ms
+            8x8x8   = 61221ms
+            8x8x4   = 62442ms
+            
+            2D Kernel
+            16x16   = 47543ms
+
+        2048x2048x128 grid, 100 steps:
+            3D Kernel
+            16x16x1 = 15065ms
+            8x8x8   = 18386ms
+
+    The fastest block size across both small and large grids appears to be 16x16x1, using the 3D kernel
+    */
     blockWidth = 16;
     blockHeight = 16;
+    blockDepth = 1;
 
     //derived values
     gridWidthBlocks = std::ceil((float)gridWidth/(float)blockWidth);
     gridHeightBlocks = std::ceil((float)gridHeight/(float)blockHeight);
+    gridDepthBlocks = std::ceil((float)gridDepth/(float)blockDepth);
     gridArea = gridWidth*gridHeight*gridDepth;
 
     //set device symbols to dimensions of grid,block,etc.
@@ -129,13 +161,17 @@ int main(int argc, const char * argv[]){
     cudaMemcpyToSymbol(*(&gridDepth_d),&gridDepth,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&blockWidth_d),&blockWidth,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&blockHeight_d),&blockHeight,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&blockDepth_d),&blockDepth,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridWidthBlocks_d),&gridWidthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridHeightBlocks_d),&gridHeightBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&gridDepthBlocks_d),&gridDepthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
 
-    printf("grid dim = %d x %d x %d\nblock dim = %d x %d\ngrid in blocks = %d x %d\n",gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,gridWidthBlocks,gridHeightBlocks);
+    printf("grid dim = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
+    printf("block dim = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
+    printf("grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
 
-    dim3 numBlocks(gridWidthBlocks*gridDepth,gridHeightBlocks,1);
-    dim3 blockSize(blockWidth,blockHeight,1);
+    dim3 numBlocks(gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
+    dim3 blockSize(blockWidth,blockHeight,blockDepth);
 
     size_t gridSize = gridWidth*gridHeight*gridDepth;
 
