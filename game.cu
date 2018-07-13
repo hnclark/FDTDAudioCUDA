@@ -1,5 +1,5 @@
 #include<stdlib.h>
-#include<stdio.h>
+#include<iostream>
 #include<cmath>
 #include<fstream>
 #include<chrono>
@@ -106,13 +106,17 @@ int main(int argc, const char * argv[]){
     //start clock
     auto startTime = std::chrono::high_resolution_clock::now();
 
+    //input and output files
+    std::string inFile = "in.txt";
+    std::string outFile = "out.txt";
+
     //time of simulation
-    timeSteps = 100;
+    timeSteps = 1;
 
     //dimensions of the grid
-    gridWidth = 2048;
-    gridHeight = 2048;
-    gridDepth = 128;
+    gridWidth = 16;
+    gridHeight = 16;
+    gridDepth = 16;
 
     /*
     Speed testing with varying grid and block sizes, using both 3D and 2D kernel implementations
@@ -149,11 +153,81 @@ int main(int argc, const char * argv[]){
     blockHeight = 16;
     blockDepth = 1;
 
+
+
+    //handle command line arguments
+    int optionLen = 0;
+    for(int i=1;i<argc;i+=optionLen){
+        printf("%d",i);
+        if(strcmp(argv[i],"-i")==0){
+            optionLen = 2;
+            if(i+optionLen<=argc){
+                inFile = argv[i+1];
+            }else{
+                std::cout << "Error: Missing arguments for -i" << std::endl;
+                return 1;
+            }
+        }else if(strcmp(argv[i],"-o")==0){
+            optionLen = 2;
+            if(i+optionLen<=argc){
+                outFile = argv[i+1];
+            }else{
+                std::cout << "Error: Missing arguments for -o" << std::endl;
+                return 1;
+            }
+        }else if(strcmp(argv[i],"-t")==0){
+            optionLen = 2;
+            if(i+optionLen<=argc){
+                timeSteps = strtol(argv[i+1],NULL,10);
+            }else{
+                std::cout << "Error: Missing arguments for -t" << std::endl;
+                return 1;
+            }
+        }else if(strcmp(argv[i],"-g")==0){
+            optionLen = 4;
+            if(i+optionLen<=argc){
+                gridWidth = strtol(argv[i+1],NULL,10);
+                gridHeight = strtol(argv[i+2],NULL,10);
+                gridDepth = strtol(argv[i+3],NULL,10);
+            }else{
+                std::cout << "Error: Missing arguments for -g" << std::endl;
+                return 1;
+            }
+        }else if(strcmp(argv[i],"-b")==0){
+            optionLen = 4;
+            if(i+optionLen<=argc){
+                blockWidth = strtol(argv[i+1],NULL,10);
+                blockHeight = strtol(argv[i+2],NULL,10);
+                blockDepth = strtol(argv[i+3],NULL,10);
+            }else{
+                std::cout << "Error: Missing arguments for -b" << std::endl;
+                return 1;
+            }
+        }else{
+            std::cout << "Error: Parameters must be of form:" << std::endl;
+            std::cout << "./game [-i infile] [-o outfile] [-t timesteps] [-g griddimensions] [-b blockdimensions]" << std::endl;
+            return 1;
+        }
+    }
+
+
+
     //derived values
     gridWidthBlocks = std::ceil((float)gridWidth/(float)blockWidth);
     gridHeightBlocks = std::ceil((float)gridHeight/(float)blockHeight);
     gridDepthBlocks = std::ceil((float)gridDepth/(float)blockDepth);
     gridArea = gridWidth*gridHeight*gridDepth;
+
+
+
+    std::cout << "In file = " << inFile << std::endl;
+    std::cout << "Out file = " << outFile << std::endl;
+    printf("Time steps = %d\n",timeSteps);
+    printf("Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
+    printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
+    printf("Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
+    std::cout << "..." << std::endl;
+
 
     //set device symbols to dimensions of grid,block,etc.
     cudaMemcpyToSymbol(*(&gridWidth_d),&gridWidth,sizeof(int),0,cudaMemcpyHostToDevice);
@@ -165,10 +239,6 @@ int main(int argc, const char * argv[]){
     cudaMemcpyToSymbol(*(&gridWidthBlocks_d),&gridWidthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridHeightBlocks_d),&gridHeightBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridDepthBlocks_d),&gridDepthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
-
-    printf("grid dim = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
-    printf("block dim = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
-    printf("grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
 
     dim3 numBlocks(gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
     dim3 blockSize(blockWidth,blockHeight,blockDepth);
@@ -187,7 +257,7 @@ int main(int argc, const char * argv[]){
     cudaMalloc((void **)&grid1_d, gridSize);
 
     //load grid
-    readTextRepr("in.txt",grid_h);
+    readTextRepr(inFile,grid_h);
     
     //only copy first grid to device, second one is computed by kernel
     cudaMemcpy(grid_d,grid_h,gridSize,cudaMemcpyHostToDevice);
@@ -199,7 +269,7 @@ int main(int argc, const char * argv[]){
 
         cudaError_t error = cudaGetLastError();
         if(error != cudaSuccess){
-            printf("%s",cudaGetErrorString(error));
+            std::cout << cudaGetErrorString(error) << std::endl;
         }
     }
 
@@ -207,7 +277,7 @@ int main(int argc, const char * argv[]){
     cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);
 
     //output grid
-    writeTextRepr("out.txt",grid_h);
+    writeTextRepr(outFile,grid_h);
 
     //free host memory
     free(grid_h);
@@ -219,4 +289,6 @@ int main(int argc, const char * argv[]){
     auto endTime = std::chrono::high_resolution_clock::now();
     auto timePassed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count();
     printf("Ran in %ld ms\n",timePassed);
+
+    return 0;
 }
