@@ -164,7 +164,7 @@ int main(int argc, const char * argv[]){
             if(i+optionLen<=argc){
                 inFile = argv[i+1];
             }else{
-                std::cout << "Error: Missing arguments for -i" << std::endl;
+                printf("Error: Missing arguments for -i\n");
                 return 1;
             }
         }else if(strcmp(argv[i],"-o")==0){
@@ -172,7 +172,7 @@ int main(int argc, const char * argv[]){
             if(i+optionLen<=argc){
                 outFile = argv[i+1];
             }else{
-                std::cout << "Error: Missing arguments for -o" << std::endl;
+                printf("Error: Missing arguments for -o\n");
                 return 1;
             }
         }else if(strcmp(argv[i],"-t")==0){
@@ -180,7 +180,7 @@ int main(int argc, const char * argv[]){
             if(i+optionLen<=argc){
                 timeSteps = strtol(argv[i+1],NULL,10);
             }else{
-                std::cout << "Error: Missing arguments for -t" << std::endl;
+                printf("Error: Missing arguments for -t\n");
                 return 1;
             }
         }else if(strcmp(argv[i],"-g")==0){
@@ -190,7 +190,7 @@ int main(int argc, const char * argv[]){
                 gridHeight = strtol(argv[i+2],NULL,10);
                 gridDepth = strtol(argv[i+3],NULL,10);
             }else{
-                std::cout << "Error: Missing arguments for -g" << std::endl;
+                printf("Error: Missing arguments for -g\n");
                 return 1;
             }
         }else if(strcmp(argv[i],"-b")==0){
@@ -200,12 +200,12 @@ int main(int argc, const char * argv[]){
                 blockHeight = strtol(argv[i+2],NULL,10);
                 blockDepth = strtol(argv[i+3],NULL,10);
             }else{
-                std::cout << "Error: Missing arguments for -b" << std::endl;
+                printf("Error: Missing arguments for -b\n");
                 return 1;
             }
         }else{
-            std::cout << "Error: Parameters must be of form:" << std::endl;
-            std::cout << "./game [-i infile] [-o outfile] [-t timesteps] [-g griddimensions] [-b blockdimensions]" << std::endl;
+            printf("Error: Parameters must be of form:\n");
+            printf("./game [-i infile] [-o outfile] [-t timesteps] [-g griddimensions] [-b blockdimensions]\n");
             return 1;
         }
     }
@@ -220,14 +220,15 @@ int main(int argc, const char * argv[]){
 
 
 
-    std::cout << "In file = " << inFile << std::endl;
-    std::cout << "Out file = " << outFile << std::endl;
+    std::cout << "In file = " << inFile << "\n";
+    std::cout << "Out file = " << outFile << "\n";
     printf("Time steps = %d\n",timeSteps);
     printf("Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
     printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
     printf("Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
-    std::cout << "..." << std::endl;
+    printf("...");
 
+    
 
     //set device symbols to dimensions of grid,block,etc.
     cudaMemcpyToSymbol(*(&gridWidth_d),&gridWidth,sizeof(int),0,cudaMemcpyHostToDevice);
