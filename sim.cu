@@ -21,36 +21,43 @@ __device__ int arrayPos(const int &x,const int &y,const int &z){
 
 
 
-__global__ void solver(bool *grid,bool *grid1){
+__global__ void solver(double *grid,double *grid1){
     int xpos = (blockIdx.x*blockWidth_d)+threadIdx.x;
     int ypos = (blockIdx.y*blockHeight_d)+threadIdx.y;
     int zpos = (blockIdx.z*blockDepth_d)+threadIdx.z;
 
     if(xpos>0 && xpos<gridWidth_d-1 && ypos>0 && ypos<gridHeight_d-1 && zpos>0 && zpos<gridDepth_d-1){
-        int neighbors = grid[arrayPos(xpos+1,ypos,zpos)]+grid[arrayPos(xpos-1,ypos,zpos)]
-                        +grid[arrayPos(xpos,ypos+1,zpos)]+grid[arrayPos(xpos,ypos-1,zpos)]
-                        +grid[arrayPos(xpos,ypos,zpos+1)]+grid[arrayPos(xpos,ypos,zpos-1)];
+        //the grid1 value at each point contains the value from 2 steps ago(but is overwritten once used)
+        grid1[arrayPos(xpos,ypos,zpos)] = grid[arrayPos(xpos+1,ypos,zpos)]+grid[arrayPos(xpos-1,ypos,zpos)]
+                                        +grid[arrayPos(xpos,ypos+1,zpos)]+grid[arrayPos(xpos,ypos-1,zpos)]
+                                        +grid[arrayPos(xpos,ypos,zpos+1)]+grid[arrayPos(xpos,ypos,zpos-1)]
+                                        -grid1[arrayPos(xpos,ypos,zpos)];
+    }
+}
 
-        if(grid[arrayPos(xpos,ypos,zpos)]){
-            if(neighbors<2 || neighbors>3){
-                grid1[arrayPos(xpos,ypos,zpos)] = false;
-            }else{
-                grid1[arrayPos(xpos,ypos,zpos)] = true;
-            }
-        }else{
-            if(neighbors==3){
-                grid1[arrayPos(xpos,ypos,zpos)] = true;
-            }else{
-                grid1[arrayPos(xpos,ypos,zpos)] = false;
-            }
-        }
+
+
+//helper function to read grid from a binary file
+void readBinaryRepr(const std::string& filename,double *array){
+    std::ifstream file(filename,std::ifstream::binary);
+    for(int i=0;i<gridArea;i++){
+        file.read(reinterpret_cast<char*>(&array[i]),sizeof(double));
+    }
+}
+
+
+//helper function to write grid to a binary file
+void writeBinaryRepr(const std::string& filename,double *array){
+    std::ofstream file(filename,std::ofstream::binary);
+    for(int i=0;i<gridArea;i++){
+        file.write(reinterpret_cast<char*>(&array[i]),sizeof(double));
     }
 }
 
 
 
 //helper function to read grid from a text file
-void readTextRepr(const std::string& filename,bool *array){
+void readTextRepr(const std::string& filename,double *array){
     std::ifstream file(filename);
     std::string str;
     int index=0;
@@ -62,9 +69,9 @@ void readTextRepr(const std::string& filename,bool *array){
                 if(index<gridArea){
                     if(str[i]!='\n'){
                         if(str[i]=='#'){
-                            array[index]=true;
+                            array[index]=1;
                         }else{
-                            array[index]=false;
+                            array[index]=0;
                         }
                         index++;
                     }
@@ -83,10 +90,10 @@ void readTextRepr(const std::string& filename,bool *array){
 
 
 //helper function to write grid to a text file
-void writeTextRepr(const std::string& filename,bool *array){
+void writeTextRepr(const std::string& filename,double *array){
     std::ofstream file(filename);
     for(int i=0;i<gridArea;i++){
-        if(array[i]){
+        if(array[i]>1){
             file<<'#';
         }else{
             file<<' ';
@@ -102,13 +109,23 @@ void writeTextRepr(const std::string& filename,bool *array){
 
 
 
+//check for and print cuda errors
+void checkCudaError(){
+    cudaError_t error = cudaGetLastError();
+    if(error != cudaSuccess){
+        std::cout << cudaGetErrorString(error) << std::endl;
+    }
+}
+
+
+
 int main(int argc, const char * argv[]){
     //start clock
     auto startTime = std::chrono::high_resolution_clock::now();
 
     //input and output files
-    std::string inFile = "in.txt";
-    std::string outFile = "out.txt";
+    std::string inFolder = "input";
+    std::string outFolder = "output";
 
     //time of simulation
     timeSteps = 1;
@@ -158,11 +175,10 @@ int main(int argc, const char * argv[]){
     //handle command line arguments
     int optionLen = 0;
     for(int i=1;i<argc;i+=optionLen){
-        printf("%d",i);
         if(strcmp(argv[i],"-i")==0){
             optionLen = 2;
             if(i+optionLen<=argc){
-                inFile = argv[i+1];
+                inFolder = argv[i+1];
             }else{
                 printf("Error: Missing arguments for -i\n");
                 return 1;
@@ -170,7 +186,7 @@ int main(int argc, const char * argv[]){
         }else if(strcmp(argv[i],"-o")==0){
             optionLen = 2;
             if(i+optionLen<=argc){
-                outFile = argv[i+1];
+                outFolder = argv[i+1];
             }else{
                 printf("Error: Missing arguments for -o\n");
                 return 1;
@@ -220,8 +236,8 @@ int main(int argc, const char * argv[]){
 
 
 
-    std::cout << "In file = " << inFile << "\n";
-    std::cout << "Out file = " << outFile << "\n";
+    std::cout << "In folder = " << inFolder << "\n";
+    std::cout << "Out folder = " << outFolder << "\n";
     printf("Time steps = %d\n",timeSteps);
     printf("Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
     printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
@@ -247,44 +263,56 @@ int main(int argc, const char * argv[]){
     size_t gridSize = gridWidth*gridHeight*gridDepth;
 
     //device+host grid arrays
-    bool *grid_h;
-    bool *grid_d,*grid1_d;
+    double *grid_h,*grid1_h;
+    double *grid_d,*grid1_d;
 
     //allocate host memory
-    grid_h = (bool *)calloc(gridSize,sizeof(bool));
+    grid_h = (double *)calloc(gridSize,sizeof(double));
+    grid1_h = (double *)calloc(gridSize,sizeof(double));
 
     //allocate device memory
     cudaMalloc((void **)&grid_d, gridSize);
     cudaMalloc((void **)&grid1_d, gridSize);
 
-    //load grid
-    readTextRepr(inFile,grid_h);
+    checkCudaError();
+
+    //load host grid to grid_h
+    readTextRepr(inFolder+"/text_repr.txt",grid_h);
+
+    //grid1_h is initialized with all zeros but in the future it may need to be set
+    //(the n-2th time value,which it stores, is used in calculation)
+    //
+    //
     
-    //only copy first grid to device, second one is computed by kernel
+    //copy both grids to device
     cudaMemcpy(grid_d,grid_h,gridSize,cudaMemcpyHostToDevice);
+    cudaMemcpy(grid1_d,grid1_h,gridSize,cudaMemcpyHostToDevice);
+
+    checkCudaError();
 
     for(int i=0;i<timeSteps;i++){
         solver<<<numBlocks,blockSize>>>(grid_d,grid1_d);
         cudaDeviceSynchronize();
         std::swap(grid_d,grid1_d);
 
-        cudaError_t error = cudaGetLastError();
-        if(error != cudaSuccess){
-            std::cout << cudaGetErrorString(error) << std::endl;
-        }
+        checkCudaError();
     }
 
     //only copy first grid to host, since it was computed and then swapped by kernel
     cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);
 
+    checkCudaError();
+
     //output grid
-    writeTextRepr(outFile,grid_h);
+    writeTextRepr(outFolder+"/text_repr.txt",grid_h);
 
     //free host memory
     free(grid_h);
     //free device memory
     cudaFree(grid_d);
     cudaFree(grid1_d);
+
+    checkCudaError();
 
     //end clock
     auto endTime = std::chrono::high_resolution_clock::now();
