@@ -98,8 +98,6 @@ void readTextRepr(const std::string& filename,double *array){
     }
 }
 
-
-
 //helper function to write grid to a text file
 void writeTextRepr(const std::string& filename,double *array){
     std::ofstream file(filename);
@@ -176,6 +174,11 @@ int main(int argc, const char * argv[]){
     blockHeight = 16;
     blockDepth = 1;
 
+    //default grid configuration
+    gridWidth = 16;
+    gridHeight = 16;
+    gridDepth = 16;
+
 
 
     //handle command line arguments to modify default configuration
@@ -205,6 +208,16 @@ int main(int argc, const char * argv[]){
                 printf("Error: Missing arguments for -t\n");
                 return 1;
             }
+        }else if(strcmp(argv[i],"-g")==0){
+            optionLen = 4;
+            if(i+optionLen<=argc){
+                gridWidth = strtol(argv[i+1],NULL,10);
+                gridHeight = strtol(argv[i+2],NULL,10);
+                gridDepth = strtol(argv[i+3],NULL,10);
+            }else{
+                printf("Error: Missing arguments for -g\n");
+                return 1;
+            }
         }else if(strcmp(argv[i],"-b")==0){
             optionLen = 4;
             if(i+optionLen<=argc){
@@ -217,23 +230,31 @@ int main(int argc, const char * argv[]){
             }
         }else{
             printf("Error: Parameters must be of form:\n");
-            printf("./game [-i infile] [-o outfile] [-t timesteps] [-b blockdimensions]\n");
+            printf("./game [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions]\n");
             return 1;
         }
     }
 
 
 
-    //default grid configuration
-    gridWidth = 16;
-    gridHeight = 16;
-    gridDepth = 16;
+    //print for debugging purposes
+    std::cout << "In folder = " << inFolder << "\n";
+    std::cout << "Out folder = " << outFolder << "\n";
+    printf("Time steps = %d\n",timeSteps);
+    printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
+
+
 
     //read binary header
     std::ifstream inGridFile(inFolder+"/sim_state.bin",std::ofstream::binary);
     if(inGridFile.good()){
         readHeaderBinary(inGridFile,gridWidth,gridHeight,gridDepth);
-        printf("TEST: %d %d %d",gridWidth,gridHeight,gridDepth);
+
+        //print for debugging purposes
+        printf("Using grid settings from file...\n");
+    }else{
+        //print for debugging purposes
+        printf("No file found, using default grid settings...\n");
     }
 
     //derived values
@@ -244,14 +265,9 @@ int main(int argc, const char * argv[]){
 
 
 
-    //print everything for debugging purposes
-    std::cout << "In folder = " << inFolder << "\n";
-    std::cout << "Out folder = " << outFolder << "\n";
-    printf("Time steps = %d\n",timeSteps);
+    //print for debugging purposes
     printf("Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
-    printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
     printf("Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
-    printf("...\n");
 
     
 
@@ -286,19 +302,21 @@ int main(int argc, const char * argv[]){
     if(inGridFile.good()){
         readDoublesBinary(inGridFile,grid_h,gridArea);
         inGridFile.close();
+
+        //print for debugging purposes
+        printf("Read grid from file...\n");
+    }else{
+        //print for debugging purposes
+        printf("No file found, using an empty grid...\n");
     }
 
     //allocate device memory
     cudaMalloc((void **)&grid_d, gridSize);
     cudaMalloc((void **)&grid1_d, gridSize);
-
-    checkCudaError();
     
     //copy both grids to device
     cudaMemcpy(grid_d,grid_h,gridSize,cudaMemcpyHostToDevice);
     cudaMemcpy(grid1_d,grid1_h,gridSize,cudaMemcpyHostToDevice);
-
-    checkCudaError();
 
     for(int i=0;i<timeSteps;i++){
         solver<<<numBlocks,blockSize>>>(grid_d,grid1_d);
@@ -310,8 +328,6 @@ int main(int argc, const char * argv[]){
 
     //only copy first grid to host, since it was computed and then swapped by kernel
     cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);
-
-    checkCudaError();
 
     //output grid in text form for debugging
     //
@@ -336,8 +352,6 @@ int main(int argc, const char * argv[]){
     //free device memory
     cudaFree(grid_d);
     cudaFree(grid1_d);
-
-    checkCudaError();
 
     //end clock
     auto endTime = std::chrono::high_resolution_clock::now();
