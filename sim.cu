@@ -37,20 +37,31 @@ __global__ void solver(double *grid,double *grid1){
 
 
 
+//helper function to read header from a binary file
+void readHeaderBinary(std::ifstream &fileIn,int &w,int &h,int &d){
+    fileIn.read(reinterpret_cast<char*>(&w),sizeof(int));
+    fileIn.read(reinterpret_cast<char*>(&h),sizeof(int));
+    fileIn.read(reinterpret_cast<char*>(&d),sizeof(int));
+}
+
+//helper function to write header to a binary file
+void writeHeaderBinary(std::ofstream &fileOut,int w,int h,int d){
+    fileOut.write(reinterpret_cast<char*>(&w),sizeof(int));
+    fileOut.write(reinterpret_cast<char*>(&h),sizeof(int));
+    fileOut.write(reinterpret_cast<char*>(&d),sizeof(int));
+}
+
 //helper function to read grid from a binary file
-void readBinaryRepr(const std::string& filename,double *array){
-    std::ifstream file(filename,std::ifstream::binary);
-    for(int i=0;i<gridArea;i++){
-        file.read(reinterpret_cast<char*>(&array[i]),sizeof(double));
+void readDoublesBinary(std::ifstream &fileIn,double *array,int arrayLen){
+    for(int i=0;i<arrayLen;i++){
+        fileIn.read(reinterpret_cast<char*>(&array[i]),sizeof(double));
     }
 }
 
-
 //helper function to write grid to a binary file
-void writeBinaryRepr(const std::string& filename,double *array){
-    std::ofstream file(filename,std::ofstream::binary);
-    for(int i=0;i<gridArea;i++){
-        file.write(reinterpret_cast<char*>(&array[i]),sizeof(double));
+void writeDoublesBinary(std::ofstream &fileOut,double *array,int arrayLen){
+    for(int i=0;i<arrayLen;i++){
+        fileOut.write(reinterpret_cast<char*>(&array[i]),sizeof(double));
     }
 }
 
@@ -93,7 +104,7 @@ void readTextRepr(const std::string& filename,double *array){
 void writeTextRepr(const std::string& filename,double *array){
     std::ofstream file(filename);
     for(int i=0;i<gridArea;i++){
-        if(array[i]>1){
+        if(array[i]>0){
             file<<'#';
         }else{
             file<<' ';
@@ -123,17 +134,12 @@ int main(int argc, const char * argv[]){
     //start clock
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    //input and output files
+    //default input and output files
     std::string inFolder = "input";
     std::string outFolder = "output";
 
-    //time of simulation
+    //default simulation time
     timeSteps = 1;
-
-    //dimensions of the grid
-    gridWidth = 16;
-    gridHeight = 16;
-    gridDepth = 16;
 
     /*
     Speed testing with varying grid and block sizes, using both 3D and 2D kernel implementations
@@ -172,7 +178,7 @@ int main(int argc, const char * argv[]){
 
 
 
-    //handle command line arguments
+    //handle command line arguments to modify default configuration
     int optionLen = 0;
     for(int i=1;i<argc;i+=optionLen){
         if(strcmp(argv[i],"-i")==0){
@@ -199,16 +205,6 @@ int main(int argc, const char * argv[]){
                 printf("Error: Missing arguments for -t\n");
                 return 1;
             }
-        }else if(strcmp(argv[i],"-g")==0){
-            optionLen = 4;
-            if(i+optionLen<=argc){
-                gridWidth = strtol(argv[i+1],NULL,10);
-                gridHeight = strtol(argv[i+2],NULL,10);
-                gridDepth = strtol(argv[i+3],NULL,10);
-            }else{
-                printf("Error: Missing arguments for -g\n");
-                return 1;
-            }
         }else if(strcmp(argv[i],"-b")==0){
             optionLen = 4;
             if(i+optionLen<=argc){
@@ -221,12 +217,24 @@ int main(int argc, const char * argv[]){
             }
         }else{
             printf("Error: Parameters must be of form:\n");
-            printf("./game [-i infile] [-o outfile] [-t timesteps] [-g griddimensions] [-b blockdimensions]\n");
+            printf("./game [-i infile] [-o outfile] [-t timesteps] [-b blockdimensions]\n");
             return 1;
         }
     }
 
 
+
+    //default grid configuration
+    gridWidth = 16;
+    gridHeight = 16;
+    gridDepth = 16;
+
+    //read binary header
+    std::ifstream inGridFile(inFolder+"/sim_state.bin",std::ofstream::binary);
+    if(inGridFile.good()){
+        readHeaderBinary(inGridFile,gridWidth,gridHeight,gridDepth);
+        printf("TEST: %d %d %d",gridWidth,gridHeight,gridDepth);
+    }
 
     //derived values
     gridWidthBlocks = std::ceil((float)gridWidth/(float)blockWidth);
@@ -236,13 +244,14 @@ int main(int argc, const char * argv[]){
 
 
 
+    //print everything for debugging purposes
     std::cout << "In folder = " << inFolder << "\n";
     std::cout << "Out folder = " << outFolder << "\n";
     printf("Time steps = %d\n",timeSteps);
     printf("Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
     printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
     printf("Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
-    printf("...");
+    printf("...\n");
 
     
 
@@ -270,19 +279,20 @@ int main(int argc, const char * argv[]){
     grid_h = (double *)calloc(gridSize,sizeof(double));
     grid1_h = (double *)calloc(gridSize,sizeof(double));
 
+    //grid1_h is initialized with all zeros but in the future it may need to be set
+    //(the n-2th time value it stores is used in calculation)
+
+    //load grid_h from file
+    if(inGridFile.good()){
+        readDoublesBinary(inGridFile,grid_h,gridArea);
+        inGridFile.close();
+    }
+
     //allocate device memory
     cudaMalloc((void **)&grid_d, gridSize);
     cudaMalloc((void **)&grid1_d, gridSize);
 
     checkCudaError();
-
-    //load host grid to grid_h
-    readTextRepr(inFolder+"/text_repr.txt",grid_h);
-
-    //grid1_h is initialized with all zeros but in the future it may need to be set
-    //(the n-2th time value,which it stores, is used in calculation)
-    //
-    //
     
     //copy both grids to device
     cudaMemcpy(grid_d,grid_h,gridSize,cudaMemcpyHostToDevice);
@@ -303,8 +313,23 @@ int main(int argc, const char * argv[]){
 
     checkCudaError();
 
-    //output grid
+    //output grid in text form for debugging
+    //
+    //
+    //
+    //
+    //
+    //
+    //
     writeTextRepr(outFolder+"/text_repr.txt",grid_h);
+
+    //write output binary file
+    std::ofstream outGridFile(outFolder+"/sim_state.bin",std::ofstream::binary);
+    if(outGridFile.good()){
+        writeHeaderBinary(outGridFile,gridWidth,gridHeight,gridDepth);
+        writeDoublesBinary(outGridFile,grid_h,gridArea);
+        outGridFile.close();
+    }
 
     //free host memory
     free(grid_h);
