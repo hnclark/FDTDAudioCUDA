@@ -2,9 +2,11 @@
 #include<iostream>
 #include<cmath>
 #include<fstream>
+
 #include<chrono>
 
-
+//constant file names
+char stateName[] = "/sim_state.bin";
 
 //shared host/device constants
 int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,blockDepth,gridWidthBlocks,gridHeightBlocks,gridDepthBlocks,gridArea;
@@ -38,31 +40,27 @@ __global__ void solver(double *grid,double *grid1){
 
 
 //helper function to read header from a binary file
-void readHeaderBinary(std::ifstream &fileIn,int &w,int &h,int &d){
-    fileIn.read(reinterpret_cast<char*>(&w),sizeof(int));
-    fileIn.read(reinterpret_cast<char*>(&h),sizeof(int));
-    fileIn.read(reinterpret_cast<char*>(&d),sizeof(int));
+void readHeaderBinary(FILE *fileIn,int *w,int *h,int *d){
+    fread(w,sizeof(int),1,fileIn);
+    fread(h,sizeof(int),1,fileIn);
+    fread(d,sizeof(int),1,fileIn);
 }
 
 //helper function to write header to a binary file
-void writeHeaderBinary(std::ofstream &fileOut,int w,int h,int d){
-    fileOut.write(reinterpret_cast<char*>(&w),sizeof(int));
-    fileOut.write(reinterpret_cast<char*>(&h),sizeof(int));
-    fileOut.write(reinterpret_cast<char*>(&d),sizeof(int));
+void writeHeaderBinary(FILE *fileOut,int *w,int *h,int *d){
+    fwrite(w,sizeof(int),1,fileOut);
+    fwrite(h,sizeof(int),1,fileOut);
+    fwrite(d,sizeof(int),1,fileOut);
 }
 
 //helper function to read grid from a binary file
-void readDoublesBinary(std::ifstream &fileIn,double *array,int arrayLen){
-    for(int i=0;i<arrayLen;i++){
-        fileIn.read(reinterpret_cast<char*>(&array[i]),sizeof(double));
-    }
+void readDoublesBinary(FILE *fileIn,double *array,int arrayLen){
+    fread(array,sizeof(double),arrayLen,fileIn);
 }
 
 //helper function to write grid to a binary file
-void writeDoublesBinary(std::ofstream &fileOut,double *array,int arrayLen){
-    for(int i=0;i<arrayLen;i++){
-        fileOut.write(reinterpret_cast<char*>(&array[i]),sizeof(double));
-    }
+void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
+    fwrite(array,sizeof(double),arrayLen,fileOut);
 }
 
 
@@ -235,7 +233,7 @@ int main(int argc, const char * argv[]){
         }
     }
 
-
+    
 
     //print for debugging purposes
     std::cout << "In folder = " << inFolder << "\n";
@@ -246,9 +244,13 @@ int main(int argc, const char * argv[]){
 
 
     //read binary header
-    std::ifstream inGridFile(inFolder+"/sim_state.bin",std::ofstream::binary);
-    if(inGridFile.good()){
-        readHeaderBinary(inGridFile,gridWidth,gridHeight,gridDepth);
+    char *inFile = (char *)calloc(inFolder.length()+strlen(stateName)+1, sizeof(char));
+    strcpy(inFile,inFolder.c_str());
+    strcat(inFile,stateName);
+
+    FILE *inGridFile = fopen(inFile,"rb");
+    if(inGridFile!=NULL){
+        readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
 
         //print for debugging purposes
         printf("Using grid settings from file...\n");
@@ -299,9 +301,9 @@ int main(int argc, const char * argv[]){
     //(the n-2th time value it stores is used in calculation)
 
     //load grid_h from file
-    if(inGridFile.good()){
+    if(inGridFile!=NULL){
         readDoublesBinary(inGridFile,grid_h,gridArea);
-        inGridFile.close();
+        fclose(inGridFile);
 
         //print for debugging purposes
         printf("Read grid from file...\n");
@@ -329,26 +331,28 @@ int main(int argc, const char * argv[]){
     //only copy first grid to host, since it was computed and then swapped by kernel
     cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);
 
+
+
     //output grid in text form for debugging
-    //
-    //
-    //
-    //
-    //
-    //
-    //
     writeTextRepr(outFolder+"/text_repr.txt",grid_h);
 
+    
+    
     //write output binary file
-    std::ofstream outGridFile(outFolder+"/sim_state.bin",std::ofstream::binary);
-    if(outGridFile.good()){
-        writeHeaderBinary(outGridFile,gridWidth,gridHeight,gridDepth);
+    char *outFile = (char *)calloc(outFolder.length()+strlen(stateName)+1, sizeof(char));
+    strcpy(outFile,outFolder.c_str());
+    strcat(outFile,stateName);
+
+    FILE *outGridFile = fopen(outFile,"wb");
+    if(outGridFile!=NULL){
+        writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
         writeDoublesBinary(outGridFile,grid_h,gridArea);
-        outGridFile.close();
+        fclose(outGridFile);
     }
 
     //free host memory
     free(grid_h);
+    free(grid1_h);
     //free device memory
     cudaFree(grid_d);
     cudaFree(grid1_d);
