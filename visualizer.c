@@ -25,26 +25,26 @@ GtkWidget* cursorButtonZ;
 
 
 //helper function to read header from a binary file
-void readHeaderBinary_c(FILE *fileIn,int *w,int *h,int *d){
+void readHeaderBinary(FILE *fileIn,int *w,int *h,int *d){
     fread(w,sizeof(int),1,fileIn);
     fread(h,sizeof(int),1,fileIn);
     fread(d,sizeof(int),1,fileIn);
 }
 
 //helper function to write header to a binary file
-void writeHeaderBinary_c(FILE *fileOut,int *w,int *h,int *d){
+void writeHeaderBinary(FILE *fileOut,int *w,int *h,int *d){
     fwrite(w,sizeof(int),1,fileOut);
     fwrite(h,sizeof(int),1,fileOut);
     fwrite(d,sizeof(int),1,fileOut);
 }
 
 //helper function to read grid from a binary file
-void readDoublesBinary_c(FILE *fileIn,double *array,int arrayLen){
+void readDoublesBinary(FILE *fileIn,double *array,int arrayLen){
     fread(array,sizeof(double),arrayLen,fileIn);
 }
 
 //helper function to write grid to a binary file
-void writeDoublesBinary_c(FILE *fileOut,double *array,int arrayLen){
+void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
     fwrite(array,sizeof(double),arrayLen,fileOut);
 }
 
@@ -80,7 +80,7 @@ void openItemFunction(){
         inGridFile = fopen(inFile,"rb");
 
         if(inGridFile!=NULL){
-            readHeaderBinary_c(inGridFile,&gridWidth,&gridHeight,&gridDepth);
+            readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
 
             gridArea = gridWidth*gridHeight*gridDepth;
             gridSize = gridWidth*gridHeight*gridDepth;
@@ -88,7 +88,7 @@ void openItemFunction(){
             free(grid);
             grid = (double *)calloc(gridSize,sizeof(double));
 
-            readDoublesBinary_c(inGridFile,grid,gridArea);
+            readDoublesBinary(inGridFile,grid,gridArea);
             fclose(inGridFile);
 
             gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonX),0,gridWidth-1);
