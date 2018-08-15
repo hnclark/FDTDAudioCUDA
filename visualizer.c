@@ -76,7 +76,7 @@ void doublesToGuchar(double *arrayIn,guchar *arrayOut,int arrayLen){
     }
 }
 
-//helper function to convert an array of guchars to an array of pixbufs, one per layer
+//helper function to convert an array of guchars to an array of pixbufs, one per image layer
 void gucharToPixbufs(guchar *arrayIn,GdkPixbuf *pixbufs[],int imageWidth,int imageHeight,int imageCount){
     for(int i=0;i<imageCount;i++){
         guchar *imagePointer = arrayIn+(i*imageWidth*imageHeight*BYTES_PER_PIXEL);
@@ -92,10 +92,12 @@ void updateDisplayImage(){
 
         GdkPixbuf* scaledPixbuf;
         if(displayImageAllocation->width/displayImageAllocation->height<imageRatio){
-            //image is taller than it is wide, compared to the viewport size
+            //image is wider than it is tall, compared to the viewport size
+            //width is the limiting factor so it should be used to determine scale
             scaledPixbuf = gdk_pixbuf_scale_simple(gridPixbufs[cursorZ],displayImageAllocation->width,displayImageAllocation->width/imageRatio,GDK_INTERP_TILES);
         }else{
-            //image is wider than it is tall, compared to the viewport size
+            //image is taller than it is wide, compared to the viewport size
+            //height is the limiting factor so it should be used to determine scale
             scaledPixbuf = gdk_pixbuf_scale_simple(gridPixbufs[cursorZ],imageRatio*displayImageAllocation->height,displayImageAllocation->height,GDK_INTERP_TILES);
         }
         
