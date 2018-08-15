@@ -5,8 +5,9 @@
 
 #include<chrono>
 
-//constant file names
-char stateName[] = "/sim_state.bin";
+#define SIM_STATE_NAME "/sim_state.bin"
+
+
 
 //shared host/device constants
 int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,blockDepth,gridWidthBlocks,gridHeightBlocks,gridDepthBlocks,gridArea;
@@ -244,9 +245,9 @@ int main(int argc, const char * argv[]){
 
 
     //read binary header
-    char *inFile = (char *)calloc(inFolder.length()+strlen(stateName)+1, sizeof(char));
+    char *inFile = (char *)calloc(inFolder.length()+strlen(SIM_STATE_NAME)+1, sizeof(char));
     strcpy(inFile,inFolder.c_str());
-    strcat(inFile,stateName);
+    strcat(inFile,SIM_STATE_NAME);
 
     FILE *inGridFile = fopen(inFile,"rb");
     if(inGridFile!=NULL){
@@ -339,9 +340,9 @@ int main(int argc, const char * argv[]){
     
     
     //write output binary file
-    char *outFile = (char *)calloc(outFolder.length()+strlen(stateName)+1, sizeof(char));
+    char *outFile = (char *)calloc(outFolder.length()+strlen(SIM_STATE_NAME)+1, sizeof(char));
     strcpy(outFile,outFolder.c_str());
-    strcat(outFile,stateName);
+    strcat(outFile,SIM_STATE_NAME);
 
     FILE *outGridFile = fopen(outFile,"wb");
     if(outGridFile!=NULL){
