@@ -2,7 +2,8 @@
 #include<stdio.h>
 
 #define SIM_STATE_NAME "/sim_state.bin"
-#define BYTES_PER_PIXEL 3
+#define SAMPLES_PER_PIXEL 3
+#define BITS_PER_SAMPLE 8
 
 
 GtkWidget* window;
@@ -31,6 +32,8 @@ int cursorZ = 0;
 GtkWidget* cursorButtonX;
 GtkWidget* cursorButtonY;
 GtkWidget* cursorButtonZ;
+
+GdkPixbuf* cursorPixbuf;
 
 gboolean fileOpen = FALSE;
 
@@ -79,8 +82,8 @@ void doublesToGuchar(double *arrayIn,guchar *arrayOut,int arrayLen){
 //helper function to convert an array of guchars to an array of pixbufs, one per image layer
 void gucharToPixbufs(guchar *arrayIn,GdkPixbuf *pixbufs[],int imageWidth,int imageHeight,int imageCount){
     for(int i=0;i<imageCount;i++){
-        guchar *imagePointer = arrayIn+(i*imageWidth*imageHeight*BYTES_PER_PIXEL);
-        pixbufs[i] = gdk_pixbuf_new_from_data(imagePointer,GDK_COLORSPACE_RGB,FALSE,8,imageWidth,imageHeight,imageWidth*3,NULL,NULL);
+        guchar *imagePointer = arrayIn+(i*imageWidth*imageHeight*SAMPLES_PER_PIXEL);
+        pixbufs[i] = gdk_pixbuf_new_from_data(imagePointer,GDK_COLORSPACE_RGB,FALSE,BITS_PER_SAMPLE,imageWidth,imageHeight,imageWidth*3,NULL,NULL);
     }
 }
 
@@ -100,7 +103,11 @@ void updateDisplayImage(){
             //height is the limiting factor so it should be used to determine scale
             scaledPixbuf = gdk_pixbuf_scale_simple(gridPixbufs[cursorZ],imageRatio*displayImageAllocation->height,displayImageAllocation->height,GDK_INTERP_TILES);
         }
-        
+
+        double imageTileSize = (double)gdk_pixbuf_get_width(scaledPixbuf)/(double)gridWidth;
+        double imageTileToCursorRatio = imageTileSize/(double)gdk_pixbuf_get_width(cursorPixbuf);
+        gdk_pixbuf_composite(cursorPixbuf,scaledPixbuf,((double)cursorX*imageTileSize)+.5,((double)cursorY*imageTileSize)+.5,imageTileSize+.5,imageTileSize+.5,((double)cursorX*imageTileSize),((double)cursorY*imageTileSize),imageTileToCursorRatio,imageTileToCursorRatio,GDK_INTERP_TILES,255);
+
         gtk_image_set_from_pixbuf(GTK_IMAGE(displayImage),scaledPixbuf);
     }
 }
@@ -109,18 +116,17 @@ void updateDisplayImage(){
 
 void cursorButtonXUpdate(){
     cursorX = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonX));
-    g_print("x = %d\n",cursorX);
+    updateDisplayImage();
 }
 
 void cursorButtonYUpdate(){
     cursorY = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonY));
-    g_print("y = %d\n",cursorY);
+    updateDisplayImage();
 }
 
 void cursorButtonZUpdate(){
     cursorZ = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonZ));
     updateDisplayImage();
-    g_print("z = %d\n",cursorZ);
 }
 
 void openItemFunction(){
@@ -151,7 +157,7 @@ void openItemFunction(){
             fclose(inGridFile);
 
             free(gridImageData);
-            gridImageData = (guchar *)calloc(gridSize*BYTES_PER_PIXEL,sizeof(guchar));
+            gridImageData = (guchar *)calloc(gridSize*SAMPLES_PER_PIXEL,sizeof(guchar));
 
             doublesToGuchar(grid,gridImageData,gridArea);
 
@@ -231,6 +237,8 @@ int main(int argc,char *argv[]){
     gtk_widget_get_allocation(imageWindow, displayImageAllocation);
 
 
+
+    cursorPixbuf = gdk_pixbuf_new_from_file("cursor.png",NULL);
 
     GtkWidget* cursorBar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
     gtk_box_pack_end(GTK_BOX(box),cursorBar,FALSE,FALSE,0);
