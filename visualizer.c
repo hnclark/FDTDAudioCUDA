@@ -1,18 +1,28 @@
 #include<gtk/gtk.h>
 #include<stdio.h>
 
+#define SIM_STATE_NAME "/sim_state.bin"
+#define BYTES_PER_PIXEL 3
+
+
 GtkWidget* window;
 
+GtkWidget* imageWindow;
+GtkAllocation* displayImageAllocation;
 GtkWidget* displayImage;
+double imageRatio;
 
 int gridWidth = 1;
 int gridHeight = 1;
 int gridDepth = 1;
 
-int gridArea = 1;
-size_t gridSize = 1;
+int gridArea;
+size_t gridSize;
 
 double *grid;
+guchar *gridImageData;
+
+GdkPixbuf **gridPixbufs;
 
 int cursorX = 0;
 int cursorY = 0;
@@ -21,6 +31,8 @@ int cursorZ = 0;
 GtkWidget* cursorButtonX;
 GtkWidget* cursorButtonY;
 GtkWidget* cursorButtonZ;
+
+gboolean fileOpen = FALSE;
 
 
 
@@ -50,19 +62,62 @@ void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
 
 
 
+guchar doubleToGucharRepresentation(double val){
+    return (guchar)(int)val*255;
+}
+
+//helper function to convert an array of doubles to an array of guchars
+void doublesToGuchar(double *arrayIn,guchar *arrayOut,int arrayLen){
+    for(int i=0;i<arrayLen;i++){
+        guchar value = doubleToGucharRepresentation(arrayIn[i]);
+        arrayOut[i*3]=value;
+        arrayOut[i*3+1]=value;
+        arrayOut[i*3+2]=value;
+    }
+}
+
+//helper function to convert an array of guchars to an array of pixbufs, one per layer
+void gucharToPixbufs(guchar *arrayIn,GdkPixbuf *pixbufs[],int imageWidth,int imageHeight,int imageCount){
+    for(int i=0;i<imageCount;i++){
+        guchar *imagePointer = arrayIn+(i*imageWidth*imageHeight*BYTES_PER_PIXEL);
+        pixbufs[i] = gdk_pixbuf_new_from_data(imagePointer,GDK_COLORSPACE_RGB,FALSE,8,imageWidth,imageHeight,imageWidth*3,NULL,NULL);
+    }
+}
+
+
+
+void updateDisplayImage(){
+    if(fileOpen){
+        gtk_widget_get_allocation(imageWindow, displayImageAllocation);
+
+        GdkPixbuf* scaledPixbuf;
+        if(displayImageAllocation->width/displayImageAllocation->height<imageRatio){
+            //image is taller than it is wide, compared to the viewport size
+            scaledPixbuf = gdk_pixbuf_scale_simple(gridPixbufs[cursorZ],displayImageAllocation->width,displayImageAllocation->width/imageRatio,GDK_INTERP_TILES);
+        }else{
+            //image is wider than it is tall, compared to the viewport size
+            scaledPixbuf = gdk_pixbuf_scale_simple(gridPixbufs[cursorZ],imageRatio*displayImageAllocation->height,displayImageAllocation->height,GDK_INTERP_TILES);
+        }
+        
+        gtk_image_set_from_pixbuf(GTK_IMAGE(displayImage),scaledPixbuf);
+    }
+}
+
+
+
 void cursorButtonXUpdate(){
     cursorX = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonX));
     g_print("x = %d\n",cursorX);
 }
 
 void cursorButtonYUpdate(){
-    int cursorY = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonY));
+    cursorY = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonY));
     g_print("y = %d\n",cursorY);
 }
 
 void cursorButtonZUpdate(){
-    int cursorZ = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonZ));
-    gtk_image_set_from_file(GTK_IMAGE(displayImage),"test.jpg");
+    cursorZ = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonZ));
+    updateDisplayImage();
     g_print("z = %d\n",cursorZ);
 }
 
@@ -72,15 +127,17 @@ void openItemFunction(){
     if(gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_ACCEPT){
         char *inFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
-        char *inFile = (char *)calloc(strlen(inFolder)+strlen("/sim_state.bin")+1, sizeof(char));
+        char *inFile = (char *)calloc(strlen(inFolder)+strlen(SIM_STATE_NAME)+1, sizeof(char));
         strcpy(inFile,inFolder);
-        strcat(inFile,"/sim_state.bin");
+        strcat(inFile,SIM_STATE_NAME);
 
         FILE *inGridFile;
         inGridFile = fopen(inFile,"rb");
 
         if(inGridFile!=NULL){
             readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
+
+            gridHeight = gridHeight;
 
             gridArea = gridWidth*gridHeight*gridDepth;
             gridSize = gridWidth*gridHeight*gridDepth;
@@ -91,9 +148,24 @@ void openItemFunction(){
             readDoublesBinary(inGridFile,grid,gridArea);
             fclose(inGridFile);
 
+            free(gridImageData);
+            gridImageData = (guchar *)calloc(gridSize*BYTES_PER_PIXEL,sizeof(guchar));
+
+            doublesToGuchar(grid,gridImageData,gridArea);
+
+            free(gridPixbufs);
+            gridPixbufs = (GdkPixbuf **)malloc(gridDepth*sizeof(GdkPixbuf *));
+
+            gucharToPixbufs(gridImageData,gridPixbufs,gridWidth,gridHeight,gridDepth);
+            imageRatio = (double)gridWidth/(double)gridHeight;            
+
             gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonX),0,gridWidth-1);
             gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonY),0,gridHeight-1);
             gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonZ),0,gridDepth-1);
+
+            fileOpen = TRUE;
+            
+            updateDisplayImage();
         }
     }
     gtk_widget_destroy(dialog);
@@ -102,8 +174,15 @@ void openItemFunction(){
 
 
 int main(int argc,char *argv[]){
+    gridArea = gridWidth*gridHeight*gridDepth;
+    gridSize = gridWidth*gridHeight*gridDepth;
+
     grid = (double *)calloc(gridSize,sizeof(double));
-    
+    gridImageData = (guchar *)calloc(gridSize,sizeof(guchar));
+    gridPixbufs = (GdkPixbuf **)malloc(gridDepth*sizeof(GdkPixbuf *));
+
+
+
     gtk_init(&argc,&argv);
     
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -139,8 +218,15 @@ int main(int argc,char *argv[]){
     
 
 
+    imageWindow = gtk_scrolled_window_new(NULL,NULL);
+    gtk_box_pack_start(GTK_BOX(box),imageWindow,TRUE,TRUE,0);
+
     displayImage = gtk_image_new();
-    gtk_box_pack_start(GTK_BOX(box),displayImage,FALSE,FALSE,0);
+    gtk_container_add(GTK_CONTAINER(imageWindow),displayImage);
+    g_signal_connect(G_OBJECT(window),"size-allocate",G_CALLBACK(updateDisplayImage),NULL);
+
+    displayImageAllocation = g_new(GtkAllocation, 1);
+    gtk_widget_get_allocation(imageWindow, displayImageAllocation);
 
 
 
