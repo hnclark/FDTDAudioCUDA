@@ -3,6 +3,8 @@
 #include<cmath>
 #include<fstream>
 
+#include<sndfile.h>
+
 #include<chrono>
 
 #define SIM_STATE_NAME "/sim_state.bin"

@@ -1,3 +1,8 @@
+/* 
+    -Uses libsndfile, covered by the GNU LGPL
+*/
+#include<sndfile.h>
+
 #include<gtk/gtk.h>
 #include<stdio.h>
 
