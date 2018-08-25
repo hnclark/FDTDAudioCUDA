@@ -1,9 +1,12 @@
+/* 
+    -Uses libsndfile, covered by the GNU LGPL
+*/
+#include<sndfile.h>
+
 #include<stdlib.h>
 #include<iostream>
 #include<cmath>
 #include<fstream>
-
-#include<sndfile.h>
 
 #include<chrono>
 
@@ -11,12 +14,25 @@
 
 
 
+typedef struct{
+    SNDFILE *file;
+    SF_INFO *info;
+}audioFile;
+
+
+typedef struct{
+    int x;
+    int y;
+    int z;
+}coord;
+
+
 //shared host/device constants
-int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,blockDepth,gridWidthBlocks,gridHeightBlocks,gridDepthBlocks,gridArea;
-__constant__ int gridWidth_d,gridHeight_d,gridDepth_d,blockWidth_d,blockHeight_d,blockDepth_d,gridWidthBlocks_d,gridHeightBlocks_d,gridDepthBlocks_d;
+int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,blockDepth,gridWidthBlocks,gridHeightBlocks,gridDepthBlocks,audioSourceCount;
+__constant__ int gridWidth_d,gridHeight_d,gridDepth_d,blockWidth_d,blockHeight_d,blockDepth_d,gridWidthBlocks_d,gridHeightBlocks_d,gridDepthBlocks_d,audioSourceCount_d;
 
 //host only constants
-int timeSteps;
+int timeSteps,gridArea;
 
 
 
@@ -38,6 +54,12 @@ __global__ void solver(double *grid,double *grid1){
                                         +grid[arrayPos(xpos,ypos,zpos+1)]+grid[arrayPos(xpos,ypos,zpos-1)]
                                         -grid1[arrayPos(xpos,ypos,zpos)];
     }
+}
+
+
+
+__global__ void loadAudioSource(double *grid,coord pos,double val){
+    grid[arrayPos(pos.x,pos.y,pos.z)] = val;
 }
 
 
@@ -182,6 +204,14 @@ int main(int argc, const char * argv[]){
 
 
 
+    //audio positions and files
+    coord *audioInPos;
+    audioFile *audioFiles;
+    //default audio source settings
+    audioSourceCount = 0;
+
+
+
     //handle command line arguments to modify default configuration
     int optionLen = 0;
     for(int i=1;i<argc;i+=optionLen){
@@ -229,9 +259,45 @@ int main(int argc, const char * argv[]){
                 printf("Error: Missing arguments for -b\n");
                 return 1;
             }
+        }else if(strcmp(argv[i],"-s")==0){
+            optionLen = 2;
+            if(i+optionLen<=argc){
+                audioSourceCount = strtol(argv[i+1],NULL,10);
+                audioInPos = (coord *)calloc(audioSourceCount,sizeof(coord));
+                audioFiles = (audioFile *)calloc(audioSourceCount,sizeof(audioFile));
+                
+                int argsPerAudioFile = 4;
+
+                for(int j=0;j<audioSourceCount;j++){
+                    optionLen += argsPerAudioFile;
+                    if(i+optionLen<=argc){
+                        //concatenate source folder+file
+                        const char *inAudFile = argv[i+(j*argsPerAudioFile)+1+1];
+                        char *loadFile = (char *)calloc(outFolder.length()+strlen(inAudFile)+1, sizeof(char));
+                        strcpy(loadFile,outFolder.c_str());
+                        strcat(loadFile,inAudFile);
+
+                        //load audio source file
+                        printf("%s\n",loadFile);
+                        audioFiles[j].file = sf_open(loadFile,SFM_READ,audioFiles[j].info);
+                        
+                        //set audio source coordinates
+                        audioInPos[j].x = strtol(argv[i+(j*argsPerAudioFile)+1+2],NULL,10);
+                        audioInPos[j].y = strtol(argv[i+(j*argsPerAudioFile)+1+3],NULL,10);
+                        audioInPos[j].z = strtol(argv[i+(j*argsPerAudioFile)+1+4],NULL,10);
+                    }else{
+                        printf("Error: Missing arguments for -s sublist\n");
+                        return 1;
+                    }
+                }
+
+            }else{
+                printf("Error: Missing arguments for -s\n");
+                return 1;
+            }
         }else{
             printf("Error: Parameters must be of form:\n");
-            printf("./game [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions]\n");
+            printf("./game [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions] [-s sourcecount [sourcefile sourcepos]*]\n");
             return 1;
         }
     }
@@ -247,7 +313,7 @@ int main(int argc, const char * argv[]){
 
 
     //read binary header
-    char *inFile = (char *)calloc(inFolder.length()+strlen(SIM_STATE_NAME)+1, sizeof(char));
+    char *inFile = (char *)calloc(inFolder.length()+strlen(SIM_STATE_NAME), sizeof(char));
     strcpy(inFile,inFolder.c_str());
     strcat(inFile,SIM_STATE_NAME);
 
@@ -286,22 +352,20 @@ int main(int argc, const char * argv[]){
     cudaMemcpyToSymbol(*(&gridWidthBlocks_d),&gridWidthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridHeightBlocks_d),&gridHeightBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridDepthBlocks_d),&gridDepthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&audioSourceCount_d),&audioSourceCount,sizeof(int),0,cudaMemcpyHostToDevice);
 
     dim3 numBlocks(gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
     dim3 blockSize(blockWidth,blockHeight,blockDepth);
 
-    size_t gridSize = gridWidth*gridHeight*gridDepth;
+    size_t gridSize = gridWidth*gridHeight*gridDepth*sizeof(double);
 
-    //device+host grid arrays
+    //device+host memory
     double *grid_h,*grid1_h;
     double *grid_d,*grid1_d;
 
     //allocate host memory
-    grid_h = (double *)calloc(gridSize,sizeof(double));
-    grid1_h = (double *)calloc(gridSize,sizeof(double));
-
-    //grid1_h is initialized with all zeros but in the future it may need to be set
-    //(the n-2th time value it stores is used in calculation)
+    grid_h = (double *)calloc(gridSize,1);
+    grid1_h = (double *)calloc(gridSize,1);
 
     //load grid_h from file
     if(inGridFile!=NULL){
@@ -314,16 +378,32 @@ int main(int argc, const char * argv[]){
         //print for debugging purposes
         printf("No file found, using an empty grid...\n");
     }
+    //grid1_h is initialized with all zeros but in the future it may need to be set
+    //(the n-2th time value it stores is used in calculation)
 
     //allocate device memory
     cudaMalloc((void **)&grid_d, gridSize);
     cudaMalloc((void **)&grid1_d, gridSize);
-    
-    //copy both grids to device
+
+    //copy host memory to device
     cudaMemcpy(grid_d,grid_h,gridSize,cudaMemcpyHostToDevice);
     cudaMemcpy(grid1_d,grid1_h,gridSize,cudaMemcpyHostToDevice);
 
     for(int i=0;i<timeSteps;i++){
+        //load in audio sources
+        for(int j=0;j<audioSourceCount;j++){
+            //load audio value from each source
+            double val = 0;
+
+            //
+            //AUDIO VALUE SHOULD BE LOADED TO val HERE
+            //
+
+            loadAudioSource<<<1,1>>>(grid_d,audioInPos[j],val);
+            cudaDeviceSynchronize();
+        }
+
+        //solve FDTD
         solver<<<numBlocks,blockSize>>>(grid_d,grid1_d);
         cudaDeviceSynchronize();
         std::swap(grid_d,grid1_d);
@@ -342,7 +422,7 @@ int main(int argc, const char * argv[]){
     
     
     //write output binary file
-    char *outFile = (char *)calloc(outFolder.length()+strlen(SIM_STATE_NAME)+1, sizeof(char));
+    char *outFile = (char *)calloc(outFolder.length()+strlen(SIM_STATE_NAME), sizeof(char));
     strcpy(outFile,outFolder.c_str());
     strcat(outFile,SIM_STATE_NAME);
 
@@ -356,6 +436,7 @@ int main(int argc, const char * argv[]){
     //free host memory
     free(grid_h);
     free(grid1_h);
+
     //free device memory
     cudaFree(grid_d);
     cudaFree(grid1_d);
