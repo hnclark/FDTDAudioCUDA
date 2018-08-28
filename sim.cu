@@ -10,11 +10,12 @@
 
 #include<chrono>
 
-#define SIM_STATE_NAME "/sim_state.bin"
+#define SIM_STATE_NAME "sim_state.bin"
 
 
 
 typedef struct{
+    const char *name;
     SNDFILE *file;
     SF_INFO *info;
 }audioFile;
@@ -273,12 +274,12 @@ int main(int argc, const char * argv[]){
                     if(i+optionLen<=argc){
                         //concatenate source folder+file
                         const char *inAudFile = argv[i+(j*argsPerAudioFile)+1+1];
-                        char *loadFile = (char *)calloc(outFolder.length()+strlen(inAudFile)+1, sizeof(char));
-                        strcpy(loadFile,outFolder.c_str());
+                        char *loadFile = (char *)calloc(outFolder.length()+strlen(inAudFile)+2, sizeof(char));
+                        strcpy(loadFile,inFolder.c_str());
+                        strcat(loadFile,"/");
                         strcat(loadFile,inAudFile);
 
                         //load audio source file
-                        printf("%s\n",loadFile);
                         audioFiles[j].file = sf_open(loadFile,SFM_READ,audioFiles[j].info);
                         
                         //set audio source coordinates
@@ -313,11 +314,9 @@ int main(int argc, const char * argv[]){
 
 
     //read binary header
-    char *inFile = (char *)calloc(inFolder.length()+strlen(SIM_STATE_NAME), sizeof(char));
-    strcpy(inFile,inFolder.c_str());
-    strcat(inFile,SIM_STATE_NAME);
+    std::string inGridFileName = inFolder+"/"+SIM_STATE_NAME;
+    FILE *inGridFile = fopen(inGridFileName.c_str(),"rb");
 
-    FILE *inGridFile = fopen(inFile,"rb");
     if(inGridFile!=NULL){
         readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
 
@@ -378,6 +377,7 @@ int main(int argc, const char * argv[]){
         //print for debugging purposes
         printf("No file found, using an empty grid...\n");
     }
+
     //grid1_h is initialized with all zeros but in the future it may need to be set
     //(the n-2th time value it stores is used in calculation)
 
@@ -422,11 +422,9 @@ int main(int argc, const char * argv[]){
     
     
     //write output binary file
-    char *outFile = (char *)calloc(outFolder.length()+strlen(SIM_STATE_NAME), sizeof(char));
-    strcpy(outFile,outFolder.c_str());
-    strcat(outFile,SIM_STATE_NAME);
+    std::string outGridFileName = outFolder+"/"+SIM_STATE_NAME;
+    FILE *outGridFile = fopen(outGridFileName.c_str(),"wb");
 
-    FILE *outGridFile = fopen(outFile,"wb");
     if(outGridFile!=NULL){
         writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
         writeDoublesBinary(outGridFile,grid_h,gridArea);
