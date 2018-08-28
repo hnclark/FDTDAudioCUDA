@@ -6,7 +6,7 @@
 #include<gtk/gtk.h>
 #include<stdio.h>
 
-#define SIM_STATE_NAME "/sim_state.bin"
+#define SIM_STATE_NAME "sim_state.bin"
 #define SAMPLES_PER_PIXEL 3
 #define BITS_PER_SAMPLE 8
 
@@ -140,8 +140,9 @@ void openItemFunction(){
     if(gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_ACCEPT){
         char *inFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
-        char *inFile = (char *)calloc(strlen(inFolder)+strlen(SIM_STATE_NAME)+1, sizeof(char));
+        char *inFile = (char *)calloc(strlen(inFolder)+strlen(SIM_STATE_NAME)+2, sizeof(char));
         strcpy(inFile,inFolder);
+        strcat(inFile,"/");
         strcat(inFile,SIM_STATE_NAME);
 
         FILE *inGridFile;
