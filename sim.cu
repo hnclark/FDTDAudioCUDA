@@ -6,6 +6,14 @@
 #include<stdlib.h>
 #include<iostream>
 #include<cmath>
+
+//
+//
+//
+//
+//
+//
+//ofstream is only used for the deprecated read/writeTextRepr functions, remove this and said functions later
 #include<fstream>
 
 #include<chrono>
@@ -404,7 +412,7 @@ int main(int argc, const char * argv[]){
         //load in audio sources
         for(int j=0;j<audioSourceCount;j++){
             //load audio value from each source
-            double val = 0;
+            double val = 1;
 
             //
             //AUDIO VALUE SHOULD BE LOADED TO val HERE
@@ -423,14 +431,7 @@ int main(int argc, const char * argv[]){
     }
 
     //only copy first grid to host, since it was computed and then swapped by kernel
-    cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);
-
-
-
-    //output grid in text form for debugging
-    writeTextRepr(outFolder+"/text_repr.txt",grid_h);
-
-    
+    cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);    
     
     //write output binary file
     std::string outGridFileName = outFolder+"/"+SIM_STATE_NAME;
