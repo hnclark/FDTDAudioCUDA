@@ -15,9 +15,9 @@
 
 
 typedef struct{
-    const char *name;
+    std::string name;
     SNDFILE *file;
-    SF_INFO *info;
+    SF_INFO info;
 }audioFile;
 
 
@@ -272,16 +272,8 @@ int main(int argc, const char * argv[]){
                 for(int j=0;j<audioSourceCount;j++){
                     optionLen += argsPerAudioFile;
                     if(i+optionLen<=argc){
-                        //concatenate source folder+file
-                        const char *inAudFile = argv[i+(j*argsPerAudioFile)+1+1];
-                        char *loadFile = (char *)calloc(outFolder.length()+strlen(inAudFile)+2, sizeof(char));
-                        strcpy(loadFile,inFolder.c_str());
-                        strcat(loadFile,"/");
-                        strcat(loadFile,inAudFile);
-
-                        //load audio source file
-                        audioFiles[j].file = sf_open(loadFile,SFM_READ,audioFiles[j].info);
-                        
+                        //set audio source file name
+                        audioFiles[j].name = argv[i+(j*argsPerAudioFile)+1+1];
                         //set audio source coordinates
                         audioInPos[j].x = strtol(argv[i+(j*argsPerAudioFile)+1+2],NULL,10);
                         audioInPos[j].y = strtol(argv[i+(j*argsPerAudioFile)+1+3],NULL,10);
@@ -313,6 +305,25 @@ int main(int argc, const char * argv[]){
 
 
 
+    //load audio source files
+    for(int i=0;i<audioSourceCount;i++){
+        std::string inAudFilePath = inFolder+"/"+audioFiles[i].name;
+
+        //print for debugging purposes
+        printf("Loading audio source: %s...\n",inAudFilePath.c_str());
+
+        audioFiles[i].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[i].info);
+
+        if(sf_error(audioFiles[i].file)==SF_ERR_NO_ERROR){
+            //print for debugging purposes
+            printf("    Loaded %ld frames\n",audioFiles[i].info.frames);
+        }else{
+            //print for debugging purposes
+            printf("    Error: %s\n",sf_strerror(audioFiles[i].file));
+        }
+        
+    }
+
     //read binary header
     std::string inGridFileName = inFolder+"/"+SIM_STATE_NAME;
     FILE *inGridFile = fopen(inGridFileName.c_str(),"rb");
@@ -336,8 +347,8 @@ int main(int argc, const char * argv[]){
 
 
     //print for debugging purposes
-    printf("Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
-    printf("Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
+    printf("    Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
+    printf("    Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
 
     
 
