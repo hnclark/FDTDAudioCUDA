@@ -133,7 +133,7 @@ void updateDisplayImage(){
 
         double imageTileSize = (double)gdk_pixbuf_get_width(scaledPixbuf)/(double)gridWidth;
         double imageTileToCursorRatio = imageTileSize/(double)gdk_pixbuf_get_width(cursorPixbuf);
-        gdk_pixbuf_composite(cursorPixbuf,scaledPixbuf,((double)cursorX*imageTileSize)+.5,((double)cursorY*imageTileSize)+.5,imageTileSize+.5,imageTileSize+.5,((double)cursorX*imageTileSize),((double)cursorY*imageTileSize),imageTileToCursorRatio,imageTileToCursorRatio,GDK_INTERP_TILES,255);
+        gdk_pixbuf_composite(cursorPixbuf,scaledPixbuf,((double)cursorX*imageTileSize),((double)cursorY*imageTileSize),imageTileSize,imageTileSize,((double)cursorX*imageTileSize),((double)cursorY*imageTileSize),imageTileToCursorRatio,imageTileToCursorRatio,GDK_INTERP_TILES,255);
 
         gtk_image_set_from_pixbuf(GTK_IMAGE(displayImage),scaledPixbuf);
     }
