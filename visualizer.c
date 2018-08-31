@@ -11,6 +11,18 @@
 #define BITS_PER_SAMPLE 8
 
 
+
+typedef struct{
+    guchar red;
+    guchar green;
+    guchar blue;
+}pixel;
+
+
+
+char *currentInFolder = NULL;
+gboolean emptyGrid = TRUE;
+
 GtkWidget* window;
 
 GtkWidget* imageWindow;
@@ -70,17 +82,27 @@ void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
 
 
 
-guchar doubleToGucharRepresentation(double val){
-    return (guchar)(int)val*255;
+pixel doubleToPixel(double val){
+    pixel pix;
+    pix.green = 0;
+    if(val>0){
+        pix.red = (guchar)abs((int)val*255);
+        pix.blue = 0;
+    }else{
+        pix.red = 0;
+        pix.blue = (guchar)abs((int)val*255);
+    }
+
+    return pix;
 }
 
 //helper function to convert an array of doubles to an array of guchars
 void doublesToGuchar(double *arrayIn,guchar *arrayOut,int arrayLen){
     for(int i=0;i<arrayLen;i++){
-        guchar value = doubleToGucharRepresentation(arrayIn[i]);
-        arrayOut[i*3]=value;
-        arrayOut[i*3+1]=value;
-        arrayOut[i*3+2]=value;
+        pixel pix = doubleToPixel(arrayIn[i]);
+        arrayOut[i*3]=pix.red;
+        arrayOut[i*3+1]=pix.green;
+        arrayOut[i*3+2]=pix.blue;
     }
 }
 
@@ -119,6 +141,56 @@ void updateDisplayImage(){
 
 
 
+void loadFolder(char *inFolder){
+    currentInFolder = inFolder;
+    FILE *inGridFile;
+
+    if(inFolder!=NULL){
+        char *inFile = (char *)calloc(strlen(inFolder)+strlen(SIM_STATE_NAME)+2, sizeof(char));
+        strcpy(inFile,inFolder);
+        strcat(inFile,"/");
+        strcat(inFile,SIM_STATE_NAME);
+
+        inGridFile = fopen(inFile,"rb");
+    }
+
+    if(inFolder!=NULL && inGridFile!=NULL){
+        readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
+    }
+
+    gridArea = gridWidth*gridHeight*gridDepth;
+    gridSize = gridWidth*gridHeight*gridDepth;
+
+    free(grid);
+    grid = (double *)calloc(gridSize,sizeof(double));
+
+    if(inFolder!=NULL && inGridFile!=NULL){
+        readDoublesBinary(inGridFile,grid,gridArea);
+        fclose(inGridFile);
+    }
+
+    free(gridImageData);
+    gridImageData = (guchar *)calloc(gridSize*SAMPLES_PER_PIXEL,sizeof(guchar));
+
+    doublesToGuchar(grid,gridImageData,gridArea);
+
+    free(gridPixbufs);
+    gridPixbufs = (GdkPixbuf **)malloc(gridDepth*sizeof(GdkPixbuf *));
+
+    gucharToPixbufs(gridImageData,gridPixbufs,gridWidth,gridHeight,gridDepth);
+    imageRatio = (double)gridWidth/(double)gridHeight;            
+
+    gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonX),0,gridWidth-1);
+    gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonY),0,gridHeight-1);
+    gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonZ),0,gridDepth-1);
+
+    fileOpen = TRUE;
+    
+    updateDisplayImage();
+}
+
+
+
 void cursorButtonXUpdate(){
     cursorX = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonX));
     updateDisplayImage();
@@ -135,54 +207,48 @@ void cursorButtonZUpdate(){
 }
 
 void openItemFunction(){
-    GtkWidget* dialog = gtk_file_chooser_dialog_new("Open Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,NULL);
+    //prompt user to select folder to open
+    GtkWidget* dialog = gtk_file_chooser_dialog_new("Open Simulation Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,NULL);
 
     if(gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_ACCEPT){
+        //open the folder
         char *inFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-
-        char *inFile = (char *)calloc(strlen(inFolder)+strlen(SIM_STATE_NAME)+2, sizeof(char));
-        strcpy(inFile,inFolder);
-        strcat(inFile,"/");
-        strcat(inFile,SIM_STATE_NAME);
-
-        FILE *inGridFile;
-        inGridFile = fopen(inFile,"rb");
-
-        if(inGridFile!=NULL){
-            readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
-
-            gridHeight = gridHeight;
-
-            gridArea = gridWidth*gridHeight*gridDepth;
-            gridSize = gridWidth*gridHeight*gridDepth;
-
-            free(grid);
-            grid = (double *)calloc(gridSize,sizeof(double));
-
-            readDoublesBinary(inGridFile,grid,gridArea);
-            fclose(inGridFile);
-
-            free(gridImageData);
-            gridImageData = (guchar *)calloc(gridSize*SAMPLES_PER_PIXEL,sizeof(guchar));
-
-            doublesToGuchar(grid,gridImageData,gridArea);
-
-            free(gridPixbufs);
-            gridPixbufs = (GdkPixbuf **)malloc(gridDepth*sizeof(GdkPixbuf *));
-
-            gucharToPixbufs(gridImageData,gridPixbufs,gridWidth,gridHeight,gridDepth);
-            imageRatio = (double)gridWidth/(double)gridHeight;            
-
-            gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonX),0,gridWidth-1);
-            gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonY),0,gridHeight-1);
-            gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonZ),0,gridDepth-1);
-
-            fileOpen = TRUE;
-            
-            updateDisplayImage();
-        }
+        loadFolder(inFolder);
     }
     gtk_widget_destroy(dialog);
+}
+
+void newItemFunction(){
+    //prompt user to choose basic settings
+    GtkWidget* settingDialog = gtk_dialog_new_with_buttons("Simulation Settings",GTK_WINDOW(window),GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,"Cancel",GTK_RESPONSE_CANCEL,"Create",GTK_RESPONSE_ACCEPT,NULL);
+
+    if(gtk_dialog_run(GTK_DIALOG(settingDialog))==GTK_RESPONSE_ACCEPT){
+        //set header info
+        //TODO: get these parameters from the settingDialog box
+        gridWidth = 16;
+        gridHeight = 16;
+        gridDepth = 16;
+
+        //load everything using an empty grid, as opposed to a grid from a file
+        loadFolder(NULL);
+
+        //char *inFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        //loadFolder(inFolder);
+    }
+    gtk_widget_destroy(settingDialog);
+}
+
+
+
+void saveItemFunction(){
+    //TODO:add code to save all the stuff currently in memory(grid,settings,list of audios as a file, etc) to a folder you choose via prompt
+    //prompt should default to currentInFolder if currentInFolder!=NULL
+    //
+}
+
+void saveAndRunItemFunction(){
+    saveItemFunction();
+    //TODO:add code to run cuda script. this should run using an already saved folder. in this case the one previously saved using saveItemFunction
 }
 
 
@@ -216,6 +282,10 @@ int main(int argc,char *argv[]){
 
     GtkWidget* fileMenu = gtk_menu_new();
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(fileMenuItem),fileMenu);
+
+    GtkWidget* newItem = gtk_menu_item_new_with_label("New");
+    gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),newItem);
+    g_signal_connect(G_OBJECT(newItem),"activate",G_CALLBACK(newItemFunction),NULL);
 
     GtkWidget* openItem = gtk_menu_item_new_with_label("Open");
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),openItem);
