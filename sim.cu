@@ -7,15 +7,6 @@
 #include<iostream>
 #include<cmath>
 
-//
-//
-//
-//
-//
-//
-//ofstream is only used for the deprecated read/writeTextRepr functions, remove this and said functions later
-#include<fstream>
-
 #include<chrono>
 
 #define SIM_STATE_NAME "sim_state.bin"
@@ -28,12 +19,12 @@ typedef struct{
     SF_INFO info;
 }audioFile;
 
-
 typedef struct{
     int x;
     int y;
     int z;
 }coord;
+
 
 
 //shared host/device constants
@@ -95,57 +86,6 @@ void readDoublesBinary(FILE *fileIn,double *array,int arrayLen){
 //helper function to write grid to a binary file
 void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
     fwrite(array,sizeof(double),arrayLen,fileOut);
-}
-
-
-
-//helper function to read grid from a text file
-void readTextRepr(const std::string& filename,double *array){
-    std::ifstream file(filename);
-    std::string str;
-    int index=0;
-
-    while(std::getline(file,str)){
-        if(str!="---"){
-            for(int i=0;i<str.length();i++){
-                //stop reading if file is greater than arrayLength
-                if(index<gridArea){
-                    if(str[i]!='\n'){
-                        if(str[i]=='#'){
-                            array[index]=1;
-                        }else{
-                            array[index]=0;
-                        }
-                        index++;
-                    }
-                }
-            }
-        }
-    }
-    //fill in excess space with falses if file is too short
-    if(index<gridArea){
-        for(int i=index;i<gridArea;i++){
-            array[index]=false;
-        }
-    }
-}
-
-//helper function to write grid to a text file
-void writeTextRepr(const std::string& filename,double *array){
-    std::ofstream file(filename);
-    for(int i=0;i<gridArea;i++){
-        if(array[i]>0){
-            file<<'#';
-        }else{
-            file<<' ';
-        }
-        if((i+1)%gridWidth==0){
-            file<<'\n';
-        }
-        if((i+1)%(gridWidth*gridHeight)==0){
-            file<<"---\n";
-        }
-    }
 }
 
 
