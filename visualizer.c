@@ -69,7 +69,7 @@ gboolean fileOpen = FALSE;
 //name of the folder currently loaded. NULL if a new grid is loaded or no folder is loaded.
 char *currentInFolder = NULL;
 
-//TODO:this should indicate if the current loaded grid is empty or not
+//TODO:this should indicate if the current loaded grid is empty(contains all zeros) or not
 gboolean emptyGrid = TRUE;
 
 //helper function to read header from a binary file
