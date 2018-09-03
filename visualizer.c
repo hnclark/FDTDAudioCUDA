@@ -20,16 +20,16 @@ typedef struct{
 
 
 
-char *currentInFolder = NULL;
-gboolean emptyGrid = TRUE;
-
+//Main window
 GtkWidget* window;
 
+//Display image drawing
 GtkWidget* imageWindow;
 GtkAllocation* displayImageAllocation;
 GtkWidget* displayImage;
 double imageRatio;
 
+//Grid dimensions
 int gridWidth = 1;
 int gridHeight = 1;
 int gridDepth = 1;
@@ -37,11 +37,13 @@ int gridDepth = 1;
 int gridArea;
 size_t gridSize;
 
+//grid images
 double *grid;
 guchar *gridImageData;
 
 GdkPixbuf **gridPixbufs;
 
+//Cursor positioning/drawing
 int cursorX = 0;
 int cursorY = 0;
 int cursorZ = 0;
@@ -52,10 +54,7 @@ GtkWidget* cursorButtonZ;
 
 GdkPixbuf* cursorPixbuf;
 
-gboolean fileOpen = FALSE;
-
-
-
+//New Grid dialog options
 int newGridWidth = 1;
 int newGridHeight = 1;
 int newGridDepth = 1;
@@ -64,7 +63,14 @@ GtkWidget* gridSizeX;
 GtkWidget* gridSizeY;
 GtkWidget* gridSizeZ;
 
+//indicates whether a file is currently completely loaded into memory. Don't redraw stuff if one isn't
+gboolean fileOpen = FALSE;
 
+//name of the folder currently loaded. NULL if a new grid is loaded or no folder is loaded.
+char *currentInFolder = NULL;
+
+//TODO:this should indicate if the current loaded grid is empty or not
+gboolean emptyGrid = TRUE;
 
 //helper function to read header from a binary file
 void readHeaderBinary(FILE *fileIn,int *w,int *h,int *d){
@@ -199,6 +205,7 @@ void cursorButtonZUpdate(){
 void loadFolder(char *inFolder){
     fileOpen = FALSE;
     currentInFolder = inFolder;
+
     FILE *inGridFile;
 
     if(inFolder!=NULL){
@@ -311,7 +318,7 @@ void newItemFunction(){
 void saveItemFunction(){
     //TODO:add code to save all the stuff currently in memory(grid,settings,list of audios as a file, etc) to a folder you choose via prompt
     //prompt should default to currentInFolder if currentInFolder!=NULL
-    //
+    //should not save a grid if emptyGrid==TRUE. it should save a header file with the grid dimensions though
 }
 
 void saveAndRunItemFunction(){
