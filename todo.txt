@@ -1,0 +1,7 @@
+TODO:
+
+implement all comments labelled TODO in visualizer.c
+
+it should be possible to store 'empty' grids of all zeros in a SIM_STATE by just including a header without any grid data. to do so without breaking fread, there should be a boolean after the header dimension values which indicates whether the file has grid data or not. if the boolean is false, don't read it(just let calloc allocated an empty grid). if it's true, read the values. this should be implemented within the read/writeHeaderBinary functions
+
+audio files should be passed in by command line but should use absolute, not relative, paths
