@@ -56,6 +56,16 @@ gboolean fileOpen = FALSE;
 
 
 
+int newGridWidth = 1;
+int newGridHeight = 1;
+int newGridDepth = 1;
+
+GtkWidget* gridSizeX;
+GtkWidget* gridSizeY;
+GtkWidget* gridSizeZ;
+
+
+
 //helper function to read header from a binary file
 void readHeaderBinary(FILE *fileIn,int *w,int *h,int *d){
     fread(w,sizeof(int),1,fileIn);
@@ -141,7 +151,53 @@ void updateDisplayImage(){
 
 
 
+void gridSizeXUpdate(){
+    newGridWidth = gtk_spin_button_get_value(GTK_SPIN_BUTTON(gridSizeX));
+}
+
+void gridSizeYUpdate(){
+    newGridHeight = gtk_spin_button_get_value(GTK_SPIN_BUTTON(gridSizeY));
+}
+
+void gridSizeZUpdate(){
+    newGridDepth = gtk_spin_button_get_value(GTK_SPIN_BUTTON(gridSizeZ));
+}
+
+
+
+void cursorXUpdate(){
+    cursorX = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonX));
+}
+
+void cursorYUpdate(){
+    cursorY = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonY));
+}
+
+void cursorZUpdate(){
+    cursorZ = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonZ));
+}
+
+
+
+void cursorButtonXUpdate(){
+    cursorXUpdate();
+    updateDisplayImage();
+}
+
+void cursorButtonYUpdate(){
+    cursorYUpdate();
+    updateDisplayImage();
+}
+
+void cursorButtonZUpdate(){
+    cursorZUpdate();
+    updateDisplayImage();
+}
+
+
+
 void loadFolder(char *inFolder){
+    fileOpen = FALSE;
     currentInFolder = inFolder;
     FILE *inGridFile;
 
@@ -157,7 +213,7 @@ void loadFolder(char *inFolder){
     if(inFolder!=NULL && inGridFile!=NULL){
         readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
     }
-
+    
     gridArea = gridWidth*gridHeight*gridDepth;
     gridSize = gridWidth*gridHeight*gridDepth;
 
@@ -178,33 +234,26 @@ void loadFolder(char *inFolder){
     gridPixbufs = (GdkPixbuf **)malloc(gridDepth*sizeof(GdkPixbuf *));
 
     gucharToPixbufs(gridImageData,gridPixbufs,gridWidth,gridHeight,gridDepth);
-    imageRatio = (double)gridWidth/(double)gridHeight;            
-
+    imageRatio = (double)gridWidth/(double)gridHeight;
+    
     gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonX),0,gridWidth-1);
     gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonY),0,gridHeight-1);
     gtk_spin_button_set_range(GTK_SPIN_BUTTON(cursorButtonZ),0,gridDepth-1);
 
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(cursorButtonX),0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(cursorButtonY),0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(cursorButtonZ),0);
+
+    cursorXUpdate();
+    cursorYUpdate();
+    cursorZUpdate();
+
     fileOpen = TRUE;
-    
+
     updateDisplayImage();
 }
 
 
-
-void cursorButtonXUpdate(){
-    cursorX = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonX));
-    updateDisplayImage();
-}
-
-void cursorButtonYUpdate(){
-    cursorY = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonY));
-    updateDisplayImage();
-}
-
-void cursorButtonZUpdate(){
-    cursorZ = gtk_spin_button_get_value(GTK_SPIN_BUTTON(cursorButtonZ));
-    updateDisplayImage();
-}
 
 void openItemFunction(){
     //prompt user to select folder to open
@@ -221,13 +270,32 @@ void openItemFunction(){
 void newItemFunction(){
     //prompt user to choose basic settings
     GtkWidget* settingDialog = gtk_dialog_new_with_buttons("Simulation Settings",GTK_WINDOW(window),GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,"Cancel",GTK_RESPONSE_CANCEL,"Create",GTK_RESPONSE_ACCEPT,NULL);
+    GtkWidget* settingDialogOptionBox = gtk_dialog_get_content_area(GTK_DIALOG(settingDialog));
+
+    gridSizeX = gtk_spin_button_new_with_range(1,INT_MAX,1);
+    gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),gridSizeX,TRUE,TRUE,0);
+    g_signal_connect(G_OBJECT(gridSizeX),"value-changed",G_CALLBACK(gridSizeXUpdate),NULL);
+    gridSizeXUpdate();
+
+    gridSizeY = gtk_spin_button_new_with_range(1,INT_MAX,1);
+    gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),gridSizeY,TRUE,TRUE,0);
+    g_signal_connect(G_OBJECT(gridSizeY),"value-changed",G_CALLBACK(gridSizeYUpdate),NULL);
+    gridSizeYUpdate();
+
+    gridSizeZ = gtk_spin_button_new_with_range(1,INT_MAX,1);
+    gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),gridSizeZ,TRUE,TRUE,0);
+    g_signal_connect(G_OBJECT(gridSizeZ),"value-changed",G_CALLBACK(gridSizeZUpdate),NULL);
+    gridSizeZUpdate();
+
+    gtk_window_set_resizable(GTK_WINDOW(settingDialog), FALSE);
+
+    gtk_widget_show_all(settingDialog);
 
     if(gtk_dialog_run(GTK_DIALOG(settingDialog))==GTK_RESPONSE_ACCEPT){
         //set header info
-        //TODO: get these parameters from the settingDialog box
-        gridWidth = 16;
-        gridHeight = 16;
-        gridDepth = 16;
+        gridWidth = newGridWidth;
+        gridHeight = newGridHeight;
+        gridDepth = newGridDepth;
 
         //load everything using an empty grid, as opposed to a grid from a file
         loadFolder(NULL);
