@@ -259,14 +259,31 @@ void loadFolder(char *inFolder){
     updateDisplayImage();
 }
 
+void saveFolder(char *outFolder){
+    FILE *outGridFile;
+
+    if(outFolder!=NULL){
+        char *outFile = (char *)calloc(strlen(outFolder)+strlen(SIM_STATE_NAME)+2, sizeof(char));
+        strcpy(outFile,outFolder);
+        strcat(outFile,"/");
+        strcat(outFile,SIM_STATE_NAME);
+
+        outGridFile = fopen(outFile,"wb");
+
+        writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
+        writeDoublesBinary(outGridFile,grid,gridArea);
+        fclose(outGridFile);
+    }
+}
+
 
 
 void openItemFunction(){
     //prompt user to select folder to open
-    GtkWidget* dialog = gtk_file_chooser_dialog_new("Open Simulation Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,NULL);
+    GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Simulation Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,NULL);
 
     if(gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_ACCEPT){
-        //open the folder
+        //load the folder
         char *inFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         loadFolder(inFolder);
     }
@@ -305,19 +322,24 @@ void newItemFunction(){
 
         //load everything using an empty grid, as opposed to a grid from a file
         loadFolder(NULL);
-
-        //char *inFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        //loadFolder(inFolder);
     }
     gtk_widget_destroy(settingDialog);
 }
 
-
-
 void saveItemFunction(){
-    //TODO:add code to save all the stuff currently in memory(grid,settings,list of audios as a file, etc) to a folder you choose via prompt
-    //prompt should default to currentInFolder if currentInFolder!=NULL
-    //should not save a grid if emptyGrid==TRUE. it should save a header file with the grid dimensions though
+    //prompt user to select folder to open
+    GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Simulation Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_CREATE_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,NULL);
+    
+    if(currentInFolder!=NULL){
+        gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(dialog),currentInFolder);
+    }
+
+    if(gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_ACCEPT){
+        //save the folder
+        char *outFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        saveFolder(outFolder);
+    }
+    gtk_widget_destroy(dialog);
 }
 
 void saveAndRunItemFunction(){
@@ -367,6 +389,17 @@ int main(int argc,char *argv[]){
     
     GtkWidget* sepItem = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),sepItem);
+
+    GtkWidget* saveItem = gtk_menu_item_new_with_label("Save");
+    gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),saveItem);
+    g_signal_connect(G_OBJECT(saveItem),"activate",G_CALLBACK(saveItemFunction),NULL);
+
+    GtkWidget* saveAndRunItem = gtk_menu_item_new_with_label("Save + Run");
+    gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),saveAndRunItem);
+    g_signal_connect(G_OBJECT(saveAndRunItem),"activate",G_CALLBACK(saveAndRunItemFunction),NULL);
+
+    GtkWidget* sepItem2 = gtk_separator_menu_item_new();
+    gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),sepItem2);
 
     GtkWidget* quitItem = gtk_menu_item_new_with_label("Quit");
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),quitItem);
