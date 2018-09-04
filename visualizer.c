@@ -23,6 +23,16 @@ typedef struct{
 //Main window
 GtkWidget* window;
 
+//Menu bar
+GtkWidget* menuBar;
+GtkWidget* fileMenuItem;
+GtkWidget* fileMenu;
+GtkWidget* newItem;
+GtkWidget* openItem;
+GtkWidget* saveItem;
+GtkWidget* saveAndRunItem;
+GtkWidget* quitItem;
+
 //Display image drawing
 GtkWidget* imageWindow;
 GtkAllocation* displayImageAllocation;
@@ -64,7 +74,7 @@ GtkWidget* gridSizeY;
 GtkWidget* gridSizeZ;
 
 //indicates whether a file is currently completely loaded into memory. Don't redraw stuff if one isn't
-gboolean fileOpen = FALSE;
+gboolean fileOpen;
 
 //name of the folder currently loaded. NULL if a new grid is loaded or no folder is loaded.
 char *currentInFolder = NULL;
@@ -155,6 +165,13 @@ void updateDisplayImage(){
 }
 
 
+void fileOpenUpdate(gboolean val){
+    fileOpen = val;
+
+    //enable/disable save widgets based on whether a file is open or not
+    gtk_widget_set_sensitive(saveItem,fileOpen);
+    gtk_widget_set_sensitive(saveAndRunItem,fileOpen);
+}
 
 void gridSizeXUpdate(){
     newGridWidth = gtk_spin_button_get_value(GTK_SPIN_BUTTON(gridSizeX));
@@ -202,7 +219,7 @@ void cursorButtonZUpdate(){
 
 
 void loadFolder(char *inFolder){
-    fileOpen = FALSE;
+    fileOpenUpdate(FALSE);
     currentInFolder = inFolder;
 
     FILE *inGridFile;
@@ -254,7 +271,7 @@ void loadFolder(char *inFolder){
     cursorYUpdate();
     cursorZUpdate();
 
-    fileOpen = TRUE;
+    fileOpenUpdate(TRUE);
 
     updateDisplayImage();
 }
@@ -371,37 +388,37 @@ int main(int argc,char *argv[]){
 
 
 
-    GtkWidget* menuBar = gtk_menu_bar_new();
+    menuBar = gtk_menu_bar_new();
 
-    GtkWidget* fileMenuItem = gtk_menu_item_new_with_label("File");
+    fileMenuItem = gtk_menu_item_new_with_label("File");
     gtk_menu_shell_append(GTK_MENU_SHELL(menuBar),fileMenuItem);
 
-    GtkWidget* fileMenu = gtk_menu_new();
+    fileMenu = gtk_menu_new();
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(fileMenuItem),fileMenu);
 
-    GtkWidget* newItem = gtk_menu_item_new_with_label("New");
+    newItem = gtk_menu_item_new_with_label("New");
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),newItem);
     g_signal_connect(G_OBJECT(newItem),"activate",G_CALLBACK(newItemFunction),NULL);
 
-    GtkWidget* openItem = gtk_menu_item_new_with_label("Open");
+    openItem = gtk_menu_item_new_with_label("Open");
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),openItem);
     g_signal_connect(G_OBJECT(openItem),"activate",G_CALLBACK(openItemFunction),NULL);
     
     GtkWidget* sepItem = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),sepItem);
 
-    GtkWidget* saveItem = gtk_menu_item_new_with_label("Save");
+    saveItem = gtk_menu_item_new_with_label("Save");
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),saveItem);
     g_signal_connect(G_OBJECT(saveItem),"activate",G_CALLBACK(saveItemFunction),NULL);
 
-    GtkWidget* saveAndRunItem = gtk_menu_item_new_with_label("Save + Run");
+    saveAndRunItem = gtk_menu_item_new_with_label("Save + Run");
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),saveAndRunItem);
     g_signal_connect(G_OBJECT(saveAndRunItem),"activate",G_CALLBACK(saveAndRunItemFunction),NULL);
 
     GtkWidget* sepItem2 = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),sepItem2);
 
-    GtkWidget* quitItem = gtk_menu_item_new_with_label("Quit");
+    quitItem = gtk_menu_item_new_with_label("Quit");
     gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu),quitItem);
     g_signal_connect(G_OBJECT(quitItem),"activate",G_CALLBACK(gtk_main_quit),NULL);
 
@@ -440,6 +457,7 @@ int main(int argc,char *argv[]){
 
 
 
+    fileOpenUpdate(FALSE);
     
     gtk_widget_show_all(window);
     gtk_main();
