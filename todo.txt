@@ -1,5 +1,26 @@
 TODO:
 
-implement all comments labelled TODO in visualizer.c
+-implement all comments labelled TODO in visualizer.c
 
-audio files should be passed in by command line but should use absolute, not relative, paths
+-audio files should be passed in by command line but should use absolute, not relative, paths
+
+-implement audio output to files
+
+-implement audio list storage in text files, like so:
+
+input folder:
+
+AUDIO_LIST.txt
+---
+5 5 5 audioIn.wav
+0 1 1 audioIn2.wav
+---
+
+output folder:
+
+AUDIO_LIST.txt
+---
+3 3 3 audioOut.wav
+---
+
+-implement new equation in simulator
