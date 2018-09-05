@@ -238,7 +238,7 @@ int main(int argc, const char * argv[]){
             }
         }else{
             printf("Error: Parameters must be of form:\n");
-            printf("./game [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions] [-s sourcecount [sourcefile sourcepos]*]\n");
+            printf("./sim [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions] [-s sourcecount [[sourcefile sourcepos]...]]\n");
             return 1;
         }
     }
@@ -352,10 +352,10 @@ int main(int argc, const char * argv[]){
         //load in audio sources
         for(int j=0;j<audioSourceCount;j++){
             //load audio value from each source
-            double val = 1;
+            double val = (i%3)-1;
 
             //
-            //AUDIO VALUE SHOULD BE LOADED TO val HERE
+            //TODO: AUDIO VALUE SHOULD BE LOADED TO val HERE
             //
 
             loadAudioSource<<<1,1>>>(grid_d,audioInPos[j],val);
