@@ -9,7 +9,7 @@ Compile the CUDA simulation code with `nvcc -o sim sim.cu` and the GUI visualize
 
 ## GUI interface
 
-Just run the GUI visualizer with ./visualizer.
+Just run the GUI visualizer with `./visualizer`.
 
 ## Programmatic interface
 
@@ -19,11 +19,11 @@ The simulator can be passed options in the format `./sim [-i infolder] [-o outfo
 
 ### Audio input
 
-The simulation will run with no audio inputs by default, unless the input folder includes an `audio_ledger.txt` file. This will list all audio inputs files, which must be in the same directory as it. It contains one line, in the format `xpos ypos zpos audiofilename`, per audio file.
+The simulation will run with no audio inputs by default, unless the input folder includes an `audio_ledger.txt` file. This will list all audio input files, which must be in the same directory as it. It should contain one line, in the format `xpos ypos zpos audiofilename`, per audio file.
 
 ### Grid input
 
-The simulation will run on an empty grid by default, unless the input folder includes a `sim_state.bin` file. This contains all values in the simulation at a particular time. By default, the simulator outputs the last frame of each simulation to a `sim_state.bin` file in the output folder. If you want to continue a simulation from where it stopped, you'll need to include this file in your input folder.
+The simulation will run on an empty grid by default, unless the input folder includes a `sim_state.bin` file. This contains all values in the simulation at a particular time. By default, the simulator outputs the last frame of each simulation to a `sim_state.bin` file in the output folder. If you want to continue a simulation from where it stopped, you'll need to put this file in your input folder.
 
 ## License information
 
