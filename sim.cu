@@ -1,16 +1,19 @@
 /* 
     -Uses libsndfile, covered by the GNU LGPL
 */
-#include<sndfile.h>
+#include<sndfile.h> //sound files
 
 #include<stdlib.h>
 #include<iostream>
 #include<cmath>
 
+#include<sys/stat.h> //mkdir
+
 #include<chrono>
 
 #define SIM_STATE_NAME "sim_state.bin"
-
+#define NO_FOLDER "NONE"
+#define FOLDER_DEFAULT_PERMISSIONS S_IRWXU | S_IRWXG | S_IRWXO
 
 
 typedef struct{
@@ -49,10 +52,10 @@ __global__ void solver(double *grid,double *grid1){
 
     if(xpos>0 && xpos<gridWidth_d-1 && ypos>0 && ypos<gridHeight_d-1 && zpos>0 && zpos<gridDepth_d-1){
         //the grid1 value at each point contains the value from 2 steps ago(but is overwritten once used)
-        grid1[arrayPos(xpos,ypos,zpos)] = grid[arrayPos(xpos+1,ypos,zpos)]+grid[arrayPos(xpos-1,ypos,zpos)]
+        grid1[arrayPos(xpos,ypos,zpos)] = ((grid[arrayPos(xpos+1,ypos,zpos)]+grid[arrayPos(xpos-1,ypos,zpos)]
                                         +grid[arrayPos(xpos,ypos+1,zpos)]+grid[arrayPos(xpos,ypos-1,zpos)]
                                         +grid[arrayPos(xpos,ypos,zpos+1)]+grid[arrayPos(xpos,ypos,zpos-1)]
-                                        -grid1[arrayPos(xpos,ypos,zpos)];
+                                        -grid1[arrayPos(xpos,ypos,zpos)])/6);
     }
 }
 
@@ -254,28 +257,36 @@ int main(int argc, const char * argv[]){
 
 
     //load audio source files
-    for(int i=0;i<audioSourceCount;i++){
-        std::string inAudFilePath = inFolder+"/"+audioFiles[i].name;
+    //
+    //TODO: when audio sources are updated to use absolute paths, checking if inFolder exists should be removed
+    if(inFolder!=NO_FOLDER){
+        for(int i=0;i<audioSourceCount;i++){
+            std::string inAudFilePath = inFolder+"/"+audioFiles[i].name;
 
-        //print for debugging purposes
-        printf("Loading audio source: %s...\n",inAudFilePath.c_str());
-
-        audioFiles[i].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[i].info);
-
-        if(sf_error(audioFiles[i].file)==SF_ERR_NO_ERROR){
             //print for debugging purposes
-            printf("    Loaded %ld frames\n",audioFiles[i].info.frames);
-        }else{
-            //print for debugging purposes
-            printf("    Error: %s\n",sf_strerror(audioFiles[i].file));
+            printf("Loading audio source: %s...\n",inAudFilePath.c_str());
+
+            audioFiles[i].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[i].info);
+
+            if(sf_error(audioFiles[i].file)==SF_ERR_NO_ERROR){
+                //print for debugging purposes
+                printf("    Loaded %ld frames\n",audioFiles[i].info.frames);
+            }else{
+                //print for debugging purposes
+                printf("    Error: %s\n",sf_strerror(audioFiles[i].file));
+            }
         }
-        
     }
 
     //read binary header
-    std::string inGridFileName = inFolder+"/"+SIM_STATE_NAME;
-    FILE *inGridFile = fopen(inGridFileName.c_str(),"rb");
+    FILE *inGridFile = NULL;
+    if(inFolder!=NO_FOLDER){
+        //load binary file
+        std::string inGridFileName = inFolder+"/"+SIM_STATE_NAME;
+        inGridFile = fopen(inGridFileName.c_str(),"rb");
+    }
 
+    //read binary file
     if(inGridFile!=NULL){
         readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
 
@@ -352,8 +363,7 @@ int main(int argc, const char * argv[]){
         //load in audio sources
         for(int j=0;j<audioSourceCount;j++){
             //load audio value from each source
-            double val = (i%3)-1;
-
+            double val = ((2*(i%2))-1);
             //
             //TODO: AUDIO VALUE SHOULD BE LOADED TO val HERE
             //
@@ -373,14 +383,27 @@ int main(int argc, const char * argv[]){
     //only copy first grid to host, since it was computed and then swapped by kernel
     cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);    
     
-    //write output binary file
-    std::string outGridFileName = outFolder+"/"+SIM_STATE_NAME;
-    FILE *outGridFile = fopen(outGridFileName.c_str(),"wb");
+    //write output
+    FILE *outGridFile = NULL;
+    if(outFolder!=NO_FOLDER){
+        mkdir(outFolder.c_str(),FOLDER_DEFAULT_PERMISSIONS);
 
+        //create binary file
+        std::string outGridFileName = outFolder+"/"+SIM_STATE_NAME;
+        outGridFile = fopen(outGridFileName.c_str(),"wb");
+    }
+
+    //write binary file
     if(outGridFile!=NULL){
         writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
         writeDoublesBinary(outGridFile,grid_h,gridArea);
         fclose(outGridFile);
+
+        //print for debugging purposes
+        printf("Outputting to file...\n");
+    }else{
+        //print for debugging purposes
+        printf("No output...\n");
     }
 
     //free host memory
