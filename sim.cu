@@ -3,11 +3,18 @@
 */
 #include<sndfile.h> //handling sound files
 #include<stdlib.h> //math functions
+
+//TODO: do I need iostream,string.h, or both? Can remove cout.
 #include<iostream> //strings+cout
+#include<string.h> //strings
+
+
 #include<sys/stat.h> //mkdir
 #include<chrono> //timing
 
 #define SIM_STATE_NAME "sim_state.bin"
+#define AUDIO_LEDGER_NAME "audio_ledger.txt"
+
 #define NO_FOLDER "NONE"
 #define FOLDER_DEFAULT_PERMISSIONS S_IRWXU | S_IRWXG | S_IRWXO
 
@@ -152,14 +159,6 @@ int main(int argc, const char * argv[]){
 
 
 
-    //audio positions and files
-    coord *audioInPos;
-    audioFile *audioFiles;
-    //default audio source settings
-    audioSourceCount = 0;
-
-
-
     //handle command line arguments to modify default configuration
     int optionLen = 0;
     for(int i=1;i<argc;i+=optionLen){
@@ -207,37 +206,9 @@ int main(int argc, const char * argv[]){
                 printf("Error: Missing arguments for -b\n");
                 return 1;
             }
-        }else if(strcmp(argv[i],"-s")==0){
-            optionLen = 2;
-            if(i+optionLen<=argc){
-                audioSourceCount = strtol(argv[i+1],NULL,10);
-                audioInPos = (coord *)malloc(audioSourceCount*sizeof(coord));
-                audioFiles = (audioFile *)malloc(audioSourceCount*sizeof(audioFile));
-                
-                int argsPerAudioFile = 4;
-
-                for(int j=0;j<audioSourceCount;j++){
-                    optionLen += argsPerAudioFile;
-                    if(i+optionLen<=argc){
-                        //set audio source file name
-                        audioFiles[j].name = argv[i+(j*argsPerAudioFile)+1+1];
-                        //set audio source coordinates
-                        audioInPos[j].x = strtol(argv[i+(j*argsPerAudioFile)+1+2],NULL,10);
-                        audioInPos[j].y = strtol(argv[i+(j*argsPerAudioFile)+1+3],NULL,10);
-                        audioInPos[j].z = strtol(argv[i+(j*argsPerAudioFile)+1+4],NULL,10);
-                    }else{
-                        printf("Error: Missing arguments for -s sublist\n");
-                        return 1;
-                    }
-                }
-
-            }else{
-                printf("Error: Missing arguments for -s\n");
-                return 1;
-            }
         }else{
             printf("Error: Parameters must be of form:\n");
-            printf("./sim [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions] [-s sourcecount [[sourcefile sourcepos]...]]\n");
+            printf("./sim [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions]\n");
             return 1;
         }
     }
@@ -251,6 +222,54 @@ int main(int argc, const char * argv[]){
     printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
 
 
+
+    //default audio source settings
+    audioSourceCount = 0;
+
+    //audio positions and files
+    coord *audioInPos = NULL;
+    audioFile *audioFiles = NULL;
+
+    //load audio ledger file
+    FILE *inAudioLedgerFile = NULL;
+    if(inFolder!=NO_FOLDER){
+        std::string inAudioLedgerName = inFolder+"/"+AUDIO_LEDGER_NAME;
+        inAudioLedgerFile = fopen(inAudioLedgerName.c_str(),"r");
+    }
+
+    //read audio ledger file
+    if(inAudioLedgerFile!=NULL){
+        char *line;
+        size_t lineBuffer = 0;
+        int lineLen = 0;
+
+        while(lineLen!=-1){
+            lineLen = getline(&line,&lineBuffer,inAudioLedgerFile);
+
+            //line must be at least 7 characters long
+            if(lineLen>=7){
+                //allocate memory for new audioFile and position
+                audioSourceCount++;
+                audioInPos = (coord *)realloc(audioInPos,audioSourceCount*sizeof(coord));
+                audioFiles = (audioFile *)realloc(audioFiles,audioSourceCount*sizeof(audioFile));
+
+                //read and split a line
+                char *wordPtr;
+                audioFiles[audioSourceCount-1].name = strtok_r(line," ",&wordPtr);
+                audioInPos[audioSourceCount-1].x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+                audioInPos[audioSourceCount-1].y = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+                audioInPos[audioSourceCount-1].z = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+            }
+        }
+
+        fclose(inAudioLedgerFile);
+
+        //print for debugging purposes
+        printf("Using audio ledger file...\n");
+    }else{
+        //print for debugging purposes
+        printf("No audio ledger file found...\n");
+    }
 
     //load audio source files
     if(inFolder!=NO_FOLDER){
@@ -275,7 +294,6 @@ int main(int argc, const char * argv[]){
     //read binary header
     FILE *inGridFile = NULL;
     if(inFolder!=NO_FOLDER){
-        //load binary file
         std::string inGridFileName = inFolder+"/"+SIM_STATE_NAME;
         inGridFile = fopen(inGridFileName.c_str(),"rb");
     }
@@ -296,8 +314,6 @@ int main(int argc, const char * argv[]){
     gridHeightBlocks = std::ceil((float)gridHeight/(float)blockHeight);
     gridDepthBlocks = std::ceil((float)gridDepth/(float)blockDepth);
     gridArea = gridWidth*gridHeight*gridDepth;
-
-
 
     //print for debugging purposes
     printf("    Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);

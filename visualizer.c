@@ -3,6 +3,8 @@
 #include<math.h> //math functions
 
 #define SIM_STATE_NAME "sim_state.bin"
+#define AUDIO_LEDGER_NAME "audio_ledger.txt"
+
 #define SAMPLES_PER_PIXEL 3
 #define BITS_PER_SAMPLE 8
 
