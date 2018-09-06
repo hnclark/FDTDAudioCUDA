@@ -1,15 +1,11 @@
 /* 
     -Uses libsndfile, covered by the GNU LGPL
 */
+#include<stdlib.h> //malloc/realloc
+#include<stdio.h> //printf
 #include<sndfile.h> //handling sound files
-#include<stdlib.h> //math functions
-
-//TODO: do I need iostream,string.h, or both? Can remove cout.
-#include<iostream> //strings+cout
-#include<string.h> //strings
-
-
 #include<sys/stat.h> //mkdir
+#include<string> //strings
 #include<chrono> //timing
 
 #define SIM_STATE_NAME "sim_state.bin"
@@ -100,7 +96,7 @@ void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
 void checkCudaError(){
     cudaError_t error = cudaGetLastError();
     if(error != cudaSuccess){
-        std::cout << cudaGetErrorString(error) << std::endl;
+        printf("%s\n",cudaGetErrorString(error));
     }
 }
 
@@ -216,8 +212,8 @@ int main(int argc, const char * argv[]){
     
 
     //print for debugging purposes
-    std::cout << "In folder = " << inFolder << "\n";
-    std::cout << "Out folder = " << outFolder << "\n";
+    printf("In folder = %s\n",inFolder.c_str());
+    printf("Out folder = %s\n",outFolder.c_str());
     printf("Time steps = %d\n",timeSteps);
     printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
 
