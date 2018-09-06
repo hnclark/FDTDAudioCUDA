@@ -1,26 +1,36 @@
 TODO:
 
--implement all comments labelled TODO in visualizer.c
-
--audio files should be passed in by command line but should use absolute, not relative, paths
+-implement all comments labelled TODO in visualizer.c + sim.cu
 
 -implement audio output to files
 
--implement audio list storage in text files, like so:
+-implement audio list storage in text files. Audio files in the input folder should be listed in AUDIO_LEDGER.txt, and any audio files you want the simulator to create in the output folder should be listed in AUDIO_OUT_LEDGER.txt, like so:
 
 input folder:
 
-AUDIO_LIST.txt
+AUDIO_LEDGER.txt
 ---
 5 5 5 audioIn.wav
 0 1 1 audioIn2.wav
 ---
 
-output folder:
+AUDIO_OUT_LEDGER.txt
+---
+3 3 3 audioOut
+---
 
-AUDIO_LIST.txt
+
+output folder(after running simulator):
+
+AUDIO_LEDGER.txt
 ---
 3 3 3 audioOut.wav
 ---
 
 -implement new equation in simulator
+
+-create icon for visualizer
+
+//optionally//-audio files should use absolute, not relative, paths
+
+
