@@ -1,10 +1,5 @@
-/* 
-    -Uses libsndfile, covered by the GNU LGPL
-*/
-#include<sndfile.h>
-
-#include<gtk/gtk.h>
-#include<stdio.h>
+#include<gtk/gtk.h> //displaying graphics
+#include<stdio.h> //file loading
 
 #define SIM_STATE_NAME "sim_state.bin"
 #define SAMPLES_PER_PIXEL 3
@@ -111,11 +106,11 @@ pixel doubleToPixel(double val){
     pixel pix;
     pix.green = 0;
     if(val>0){
-        pix.red = (guchar)abs((int)val*255);
+        pix.red = (guchar)abs(val*255);
         pix.blue = 0;
     }else{
         pix.red = 0;
-        pix.blue = (guchar)abs((int)val*255);
+        pix.blue = (guchar)abs(val*255);
     }
 
     return pix;

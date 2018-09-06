@@ -1,15 +1,11 @@
 /* 
     -Uses libsndfile, covered by the GNU LGPL
 */
-#include<sndfile.h> //sound files
-
-#include<stdlib.h>
-#include<iostream>
-#include<cmath>
-
+#include<sndfile.h> //handling sound files
+#include<stdlib.h> //math functions
+#include<iostream> //strings+cout
 #include<sys/stat.h> //mkdir
-
-#include<chrono>
+#include<chrono> //timing
 
 #define SIM_STATE_NAME "sim_state.bin"
 #define NO_FOLDER "NONE"
@@ -257,8 +253,6 @@ int main(int argc, const char * argv[]){
 
 
     //load audio source files
-    //
-    //TODO: when audio sources are updated to use absolute paths, checking if inFolder exists should be removed
     if(inFolder!=NO_FOLDER){
         for(int i=0;i<audioSourceCount;i++){
             std::string inAudFilePath = inFolder+"/"+audioFiles[i].name;
