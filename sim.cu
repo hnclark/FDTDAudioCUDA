@@ -204,7 +204,7 @@ int main(int argc, const char * argv[]){
             }
         }else{
             printf("Error: Parameters must be of form:\n");
-            printf("./sim [-i infile] [-o outfile] [-t timesteps] [-g gridsize] [-b blockdimensions]\n");
+            printf("./sim [-i infolder] [-o outfolder] [-t timesteps] [-g gridsize] [-b blockdimensions]\n");
             return 1;
         }
     }
