@@ -1,5 +1,6 @@
 #include<gtk/gtk.h> //displaying graphics
 #include<stdio.h> //file loading
+#include<math.h> //math functions
 
 #define SIM_STATE_NAME "sim_state.bin"
 #define SAMPLES_PER_PIXEL 3
@@ -47,6 +48,9 @@ double *grid;
 guchar *gridImageData;
 
 GdkPixbuf **gridPixbufs;
+
+//grid color gain factor
+double colorGainFactor = (double)1/3;
 
 //Cursor positioning/drawing
 int cursorX = 0;
@@ -106,11 +110,11 @@ pixel doubleToPixel(double val){
     pixel pix;
     pix.green = 0;
     if(val>0){
-        pix.red = (guchar)abs(val*255);
+        pix.red = (guchar)abs(pow(val,colorGainFactor)*255);
         pix.blue = 0;
     }else{
         pix.red = 0;
-        pix.blue = (guchar)abs(val*255);
+        pix.blue = (guchar)abs(pow(val,colorGainFactor)*255);
     }
 
     return pix;
@@ -449,8 +453,6 @@ int main(int argc,char *argv[]){
     cursorButtonZ = gtk_spin_button_new_with_range(0,gridDepth-1,1);
     gtk_box_pack_start(GTK_BOX(cursorBar),cursorButtonZ,TRUE,TRUE,0);
     g_signal_connect(G_OBJECT(cursorButtonZ),"value-changed",G_CALLBACK(cursorButtonZUpdate),NULL);
-
-
 
     fileOpenUpdate(FALSE);
     
