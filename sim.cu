@@ -211,8 +211,8 @@ int main(int argc, const char * argv[]){
             optionLen = 2;
             if(i+optionLen<=argc){
                 audioSourceCount = strtol(argv[i+1],NULL,10);
-                audioInPos = (coord *)calloc(audioSourceCount,sizeof(coord));
-                audioFiles = (audioFile *)calloc(audioSourceCount,sizeof(audioFile));
+                audioInPos = (coord *)malloc(audioSourceCount*sizeof(coord));
+                audioFiles = (audioFile *)malloc(audioSourceCount*sizeof(audioFile));
                 
                 int argsPerAudioFile = 4;
 
@@ -407,6 +407,15 @@ int main(int argc, const char * argv[]){
     //free device memory
     cudaFree(grid_d);
     cudaFree(grid1_d);
+
+    //free audio position data
+    free(audioInPos);
+
+    //free audio file data
+    for(int j=0;j<audioSourceCount;j++){
+        sf_close(audioFiles[j].file);
+    }
+    free(audioFiles);
 
     //end clock
     auto endTime = std::chrono::high_resolution_clock::now();

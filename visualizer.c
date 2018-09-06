@@ -230,6 +230,7 @@ void loadFolder(char *inFolder){
         strcat(inFile,SIM_STATE_NAME);
 
         inGridFile = fopen(inFile,"rb");
+        free(inFile);
     }
 
     if(inFolder!=NULL && inGridFile!=NULL){
@@ -248,7 +249,7 @@ void loadFolder(char *inFolder){
     }
 
     free(gridImageData);
-    gridImageData = (guchar *)calloc(gridSize*SAMPLES_PER_PIXEL,sizeof(guchar));
+    gridImageData = (guchar *)malloc(gridSize*SAMPLES_PER_PIXEL*sizeof(guchar));
 
     doublesToGuchar(grid,gridImageData,gridArea);
 
@@ -289,6 +290,7 @@ void saveFolder(char *outFolder){
         writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
         writeDoublesBinary(outGridFile,grid,gridArea);
         fclose(outGridFile);
+        free(outFile);
     }
 }
 
@@ -370,7 +372,7 @@ int main(int argc,char *argv[]){
     gridSize = gridWidth*gridHeight*gridDepth;
 
     grid = (double *)calloc(gridSize,sizeof(double));
-    gridImageData = (guchar *)calloc(gridSize,sizeof(guchar));
+    gridImageData = (guchar *)malloc(gridSize*sizeof(guchar));
     gridPixbufs = (GdkPixbuf **)malloc(gridDepth*sizeof(GdkPixbuf *));
 
 
@@ -459,7 +461,10 @@ int main(int argc,char *argv[]){
     gtk_widget_show_all(window);
     gtk_main();
 
+    //Free memory
     free(grid);
+    free(gridImageData);
+    free(gridPixbufs);
 
     return 1;
 }
