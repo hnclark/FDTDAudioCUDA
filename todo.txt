@@ -1,6 +1,6 @@
 TODO:
 
--implement all comments labelled TODO in visualizer.c + sim.cu
+-implement all comments labelled TODO in visualizer.c
 
 -implement audio output to files
 
@@ -30,6 +30,10 @@ AUDIO_LEDGER.txt
 -implement new equation in simulator
 
 -create icon for visualizer
+
+-add audio sources and outputs to visualizer
+
+-optimize audio loading/downloading part of algorithm: load audio frames before algorithm runs, pass all audio values in at once via array with 1 thread per value, or just memcpy them to device before running(don't copy the entire audio file, just enough so it has <timesteps> amount of frames).
 
 //optionally//-audio files should use absolute, not relative, paths
 
