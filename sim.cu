@@ -17,6 +17,7 @@
 
 typedef struct{
     std::string name;
+    bool loaded;
     SNDFILE *file;
     SF_INFO info;
 }audioFile;
@@ -277,10 +278,11 @@ int main(int argc, const char * argv[]){
 
             audioFiles[i].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[i].info);
 
-            if(sf_error(audioFiles[i].file)==SF_ERR_NO_ERROR){
+            if(sf_error(audioFiles[i].file)==SF_ERR_NO_ERROR && audioFiles[i].info.channels==1){
                 //print for debugging purposes
                 printf("    Loaded %ld frames\n",audioFiles[i].info.frames);
             }else{
+                audioFiles[i].loaded = false;
                 //print for debugging purposes
                 printf("    Error: %s\n",sf_strerror(audioFiles[i].file));
             }
@@ -369,13 +371,12 @@ int main(int argc, const char * argv[]){
         //load in audio sources
         for(int j=0;j<audioSourceCount;j++){
             //load audio value from each source
-            double val = ((2*(i%2))-1);
-            //
-            //TODO: AUDIO VALUE SHOULD BE LOADED TO val HERE
-            //
-
-            loadAudioSource<<<1,1>>>(grid_d,audioInPos[j],val);
-            cudaDeviceSynchronize();
+            double val = 0;
+            if(sf_read_double(audioFiles[j].file,&val,1)!=0){
+                //printf("VAL: %f\n",val);
+                loadAudioSource<<<1,1>>>(grid_d,audioInPos[j],val);
+                cudaDeviceSynchronize();
+            }
         }
 
         //solve FDTD
