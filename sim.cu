@@ -236,58 +236,62 @@ int main(int argc, const char * argv[]){
 
     //read audio ledger file
     if(inAudioLedgerFile!=NULL){
+        //print for debugging purposes
+        printf("Using audio ledger file...\n");
+
         char *line;
         size_t lineBuffer = 0;
         int lineLen = 0;
 
+        int index;
+
         while(lineLen!=-1){
             lineLen = getline(&line,&lineBuffer,inAudioLedgerFile);
 
-            //line must be at least 7 characters long
+            //line must be at least 7 characters long(to prevent errors on empty/new lines)
             if(lineLen>=7){
-                //allocate memory for new audioFile and position
+                index = audioSourceCount;
+
                 audioSourceCount++;
+
+                //allocate memory for new audioFile and position
                 audioInPos = (coord *)realloc(audioInPos,audioSourceCount*sizeof(coord));
                 audioFiles = (audioFile *)realloc(audioFiles,audioSourceCount*sizeof(audioFile));
 
                 //read and split a line
                 char *wordPtr;
-                audioFiles[audioSourceCount-1].name = strtok_r(line," ",&wordPtr);
-                audioInPos[audioSourceCount-1].x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
-                audioInPos[audioSourceCount-1].y = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
-                audioInPos[audioSourceCount-1].z = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+                std::string inAudFilePath = inFolder+"/"+strtok_r(line," ",&wordPtr);
+
+                //print for debugging purposes
+                printf("Loading audio source: %s...\n",inAudFilePath.c_str());
+
+                audioFiles[index].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[index].info);
+
+                if(sf_error(audioFiles[index].file)==SF_ERR_NO_ERROR && audioFiles[index].info.channels==1){
+                    //print for debugging purposes
+                    printf("    Loaded %ld frames\n",audioFiles[index].info.frames);
+
+                    audioFiles[index].loaded = true;
+                }else{
+                    //print for debugging purposes
+                    printf("    Error: %s\n",sf_strerror(audioFiles[index].file));
+
+                    audioFiles[index].loaded = false;
+                }
+
+                audioInPos[index].x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+                audioInPos[index].y = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+                audioInPos[index].z = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
             }
         }
 
         fclose(inAudioLedgerFile);
-
-        //print for debugging purposes
-        printf("Using audio ledger file...\n");
     }else{
         //print for debugging purposes
         printf("No audio ledger file found...\n");
     }
 
-    //load audio source files
-    if(inFolder!=NO_FOLDER){
-        for(int i=0;i<audioSourceCount;i++){
-            std::string inAudFilePath = inFolder+"/"+audioFiles[i].name;
 
-            //print for debugging purposes
-            printf("Loading audio source: %s...\n",inAudFilePath.c_str());
-
-            audioFiles[i].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[i].info);
-
-            if(sf_error(audioFiles[i].file)==SF_ERR_NO_ERROR && audioFiles[i].info.channels==1){
-                //print for debugging purposes
-                printf("    Loaded %ld frames\n",audioFiles[i].info.frames);
-            }else{
-                audioFiles[i].loaded = false;
-                //print for debugging purposes
-                printf("    Error: %s\n",sf_strerror(audioFiles[i].file));
-            }
-        }
-    }
 
     //read binary header
     FILE *inGridFile = NULL;
@@ -313,6 +317,8 @@ int main(int argc, const char * argv[]){
     gridDepthBlocks = std::ceil((float)gridDepth/(float)blockDepth);
     gridArea = gridWidth*gridHeight*gridDepth;
 
+
+    
     //print for debugging purposes
     printf("    Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
     printf("    Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
@@ -372,8 +378,7 @@ int main(int argc, const char * argv[]){
         for(int j=0;j<audioSourceCount;j++){
             //load audio value from each source
             double val = 0;
-            if(sf_read_double(audioFiles[j].file,&val,1)!=0){
-                //printf("VAL: %f\n",val);
+            if(audioFiles[j].loaded && sf_read_double(audioFiles[j].file,&val,1)!=0){
                 loadAudioSource<<<1,1>>>(grid_d,audioInPos[j],val);
                 cudaDeviceSynchronize();
             }
