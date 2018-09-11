@@ -395,7 +395,7 @@ void newItemFunction(){
 
 void saveItemFunction(){
     //prompt user to select folder to open
-    GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Simulation Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_CREATE_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,NULL);
+    GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Simulation Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,NULL);
     
     if(currentInFolder!=NULL){
         gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(dialog),currentInFolder);
@@ -440,9 +440,11 @@ void saveAndRunItemFunction(){
 
             runCommand = appendCommandLineFlag(runCommand,BLOCKSIZE_FLAG,intStr);
         }
-        g_print("%s\n",runCommand);
-        system(runCommand);
 
+        g_print("Running: %s\n",runCommand);
+        system(runCommand);
+        g_print("---\n");
+        
         //load folder of output
         loadFolder(currentOutFolder);
     }
