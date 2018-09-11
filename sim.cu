@@ -91,6 +91,27 @@ void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
     fwrite(array,sizeof(double),arrayLen,fileOut);
 }
 
+char *readAudioLedgerLine(FILE *fileIn,int *x,int *y,int *z){
+    char *audioFileName;
+    char *line;
+    size_t lineBuffer = 0;
+    int lineLen = 0;
+    
+    lineLen = getline(&line,&lineBuffer,fileIn);
+    
+    if(lineLen>=7){
+        char *wordPtr;
+        audioFileName = strtok_r(line," ",&wordPtr);
+        *x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+        *y = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+        *z = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+        
+        return audioFileName;
+    }else{
+        return NULL;
+    }
+}
+
 
 
 //check for and print cuda errors
@@ -238,51 +259,40 @@ int main(int argc, const char * argv[]){
     if(inAudioLedgerFile!=NULL){
         //print for debugging purposes
         printf("Using audio ledger file...\n");
+        
+        int x,y,z,index;
+        char *audioFileName;
 
-        char *line;
-        size_t lineBuffer = 0;
-        int lineLen = 0;
+        while((audioFileName = readAudioLedgerLine(inAudioLedgerFile,&x,&y,&z))!=NULL){
+            index = audioSourceCount;
+            audioSourceCount++;
 
-        int index;
+            //allocate memory for new audioFile and position
+            audioInPos = (coord *)realloc(audioInPos,audioSourceCount*sizeof(coord));
+            audioFiles = (audioFile *)realloc(audioFiles,audioSourceCount*sizeof(audioFile));
 
-        while(lineLen!=-1){
-            lineLen = getline(&line,&lineBuffer,inAudioLedgerFile);
+            std::string inAudFilePath = inFolder+"/"+audioFileName;
 
-            //line must be at least 7 characters long(to prevent errors on empty/new lines)
-            if(lineLen>=7){
-                index = audioSourceCount;
+            //print for debugging purposes
+            printf("Loading audio source: %s...\n",inAudFilePath.c_str());
 
-                audioSourceCount++;
+            audioFiles[index].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[index].info);
 
-                //allocate memory for new audioFile and position
-                audioInPos = (coord *)realloc(audioInPos,audioSourceCount*sizeof(coord));
-                audioFiles = (audioFile *)realloc(audioFiles,audioSourceCount*sizeof(audioFile));
-
-                //read and split a line
-                char *wordPtr;
-                std::string inAudFilePath = inFolder+"/"+strtok_r(line," ",&wordPtr);
-
+            if(sf_error(audioFiles[index].file)==SF_ERR_NO_ERROR && audioFiles[index].info.channels==1){
                 //print for debugging purposes
-                printf("Loading audio source: %s...\n",inAudFilePath.c_str());
+                printf("    Loaded %ld frames\n",audioFiles[index].info.frames);
 
-                audioFiles[index].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[index].info);
+                audioFiles[index].loaded = true;
+            }else{
+                //print for debugging purposes
+                printf("    Error: %s\n",sf_strerror(audioFiles[index].file));
 
-                if(sf_error(audioFiles[index].file)==SF_ERR_NO_ERROR && audioFiles[index].info.channels==1){
-                    //print for debugging purposes
-                    printf("    Loaded %ld frames\n",audioFiles[index].info.frames);
-
-                    audioFiles[index].loaded = true;
-                }else{
-                    //print for debugging purposes
-                    printf("    Error: %s\n",sf_strerror(audioFiles[index].file));
-
-                    audioFiles[index].loaded = false;
-                }
-
-                audioInPos[index].x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
-                audioInPos[index].y = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
-                audioInPos[index].z = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+                audioFiles[index].loaded = false;
             }
+
+            audioInPos[index].x = x;
+            audioInPos[index].y = y;
+            audioInPos[index].z = z;
         }
 
         fclose(inAudioLedgerFile);
@@ -318,7 +328,7 @@ int main(int argc, const char * argv[]){
     gridArea = gridWidth*gridHeight*gridDepth;
 
 
-    
+
     //print for debugging purposes
     printf("    Grid dimensions = %dx%dx%d\n",gridWidth,gridHeight,gridDepth);
     printf("    Grid in blocks = %dx%dx%d\n",gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
