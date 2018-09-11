@@ -8,6 +8,17 @@
 #define SAMPLES_PER_PIXEL 3
 #define BITS_PER_SAMPLE 8
 
+#define BASE_COMMAND "./sim"
+
+#define FLAG_FRONT " -"
+#define FLAG_BACK " "
+
+#define INPUT_FLAG "i"
+#define OUTPUT_FLAG "o"
+#define TIMESTEP_FLAG "t"
+#define GRIDSIZE_FLAG "g"
+#define BLOCKSIZE_FLAG "b"
+
 
 
 typedef struct{
@@ -80,6 +91,17 @@ gboolean fileOpen;
 //name of the folder currently loaded. NULL if a new grid is loaded or no folder is loaded.
 char *currentInFolder = NULL;
 
+//name of the folder the simulator will output to
+char *currentOutFolder = "output";
+
+//timesteps of simulation
+int timesteps = 0;
+
+//block size to be used in simulation
+int blocksize = 0;
+
+//whether the file has been saved or not
+gboolean fileSaved;
 
 
 //helper function to read header from a binary file
@@ -104,6 +126,19 @@ void readDoublesBinary(FILE *fileIn,double *array,int arrayLen){
 //helper function to write grid to a binary file
 void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
     fwrite(array,sizeof(double),arrayLen,fileOut);
+}
+
+
+
+//helper function to append command line flags to commands
+char *appendCommandLineFlag(char *command,char *flag,char *val){
+    command = (char *)realloc(command,(strlen(command)+strlen(FLAG_FRONT)+strlen(flag)+strlen(FLAG_BACK)+strlen(val))*sizeof(char));
+    strcat(command,FLAG_FRONT);
+    strcat(command,flag);
+    strcat(command,FLAG_BACK);
+    strcat(command,val);
+
+    return command;
 }
 
 
@@ -166,12 +201,17 @@ void updateDisplayImage(){
 }
 
 
+
+void fileSavedUpdate(gboolean val){
+    fileSaved = val;
+}
+
 void fileOpenUpdate(gboolean val){
     fileOpen = val;
 
     //enable/disable save widgets based on whether a file is open or not
-    gtk_widget_set_sensitive(saveItem,fileOpen);
-    gtk_widget_set_sensitive(saveAndRunItem,fileOpen);
+    gtk_widget_set_sensitive(saveItem,val);
+    gtk_widget_set_sensitive(saveAndRunItem,val);
 }
 
 void gridSizeXUpdate(){
@@ -221,6 +261,8 @@ void cursorButtonZUpdate(){
 
 void loadFolder(char *inFolder){
     fileOpenUpdate(FALSE);
+    fileSavedUpdate(FALSE);
+
     currentInFolder = inFolder;
 
     FILE *inGridFile;
@@ -248,6 +290,8 @@ void loadFolder(char *inFolder){
     if(inFolder!=NULL && inGridFile!=NULL){
         readDoublesBinary(inGridFile,grid,gridArea);
         fclose(inGridFile);
+
+        fileSavedUpdate(TRUE);
     }
 
     free(gridImageData);
@@ -293,6 +337,9 @@ void saveFolder(char *outFolder){
         writeDoublesBinary(outGridFile,grid,gridArea);
         fclose(outGridFile);
         free(outFile);
+
+        currentInFolder = outFolder;
+        fileSavedUpdate(TRUE);
     }
 }
 
@@ -363,8 +410,42 @@ void saveItemFunction(){
 }
 
 void saveAndRunItemFunction(){
-    saveItemFunction();
-    //TODO:add code to run cuda script. this should run using an already saved folder. in this case the one previously saved using saveItemFunction
+    if(!fileSaved){
+        saveItemFunction();
+    }
+
+    if(fileSaved){
+        //TODO:add option to change output folder,etc
+
+        char *runCommand = (char *)malloc(strlen(BASE_COMMAND)*sizeof(char));
+        strcpy(runCommand,BASE_COMMAND);
+
+        if(currentInFolder!=NULL){
+            runCommand = appendCommandLineFlag(runCommand,INPUT_FLAG,currentInFolder);
+        }
+        if(currentOutFolder!=NULL){
+            runCommand = appendCommandLineFlag(runCommand,OUTPUT_FLAG,currentOutFolder);
+        }
+        if(timesteps){
+            int len = snprintf(NULL,0,"%d",timesteps);
+            char* intStr = (char *)malloc(len+1);
+            snprintf(intStr,len+1,"%d",timesteps);
+
+            runCommand = appendCommandLineFlag(runCommand,TIMESTEP_FLAG,intStr);
+        }
+        if(blocksize){
+            int len = snprintf(NULL,0,"%d",blocksize);
+            char* intStr = (char *)malloc(len+1);
+            snprintf(intStr,len+1,"%d",blocksize);
+
+            runCommand = appendCommandLineFlag(runCommand,BLOCKSIZE_FLAG,intStr);
+        }
+        g_print("%s\n",runCommand);
+        system(runCommand);
+
+        //load folder of output
+        loadFolder(currentOutFolder);
+    }
 }
 
 
@@ -459,6 +540,7 @@ int main(int argc,char *argv[]){
     g_signal_connect(G_OBJECT(cursorButtonZ),"value-changed",G_CALLBACK(cursorButtonZUpdate),NULL);
 
     fileOpenUpdate(FALSE);
+    fileSavedUpdate(FALSE);
     
     gtk_widget_show_all(window);
     gtk_main();
