@@ -98,7 +98,9 @@ char *currentOutFolder = "output";
 int timesteps = 0;
 
 //block size to be used in simulation
-int blocksize = 0;
+int blockWidth = 0;
+int blockHeight = 0;
+int blockDepth = 0;
 
 //whether the file has been saved or not
 gboolean fileSaved;
@@ -415,7 +417,7 @@ void saveAndRunItemFunction(){
     }
 
     if(fileSaved){
-        //TODO:add option to change output folder,etc
+        //TODO:add option to change output folder, timesteps, and block size
 
         char *runCommand = (char *)malloc(strlen(BASE_COMMAND)*sizeof(char));
         strcpy(runCommand,BASE_COMMAND);
@@ -433,16 +435,26 @@ void saveAndRunItemFunction(){
 
             runCommand = appendCommandLineFlag(runCommand,TIMESTEP_FLAG,intStr);
         }
-        if(blocksize){
-            int len = snprintf(NULL,0,"%d",blocksize);
-            char* intStr = (char *)malloc(len+1);
-            snprintf(intStr,len+1,"%d",blocksize);
+        if(blockWidth && blockHeight && blockDepth){
+            int lenW = snprintf(NULL,0,"%d ",blockWidth);
+            int lenH = snprintf(NULL,0,"%d ",blockHeight);
+            int lenD = snprintf(NULL,0,"%d",blockDepth);
+
+            char* intStr = (char *)malloc(lenW+lenH+lenD+1);
+
+            snprintf(intStr,lenW+1,"%d ",blockWidth);
+            snprintf(intStr+lenW,lenH+1,"%d ",blockHeight);
+            snprintf(intStr+lenW+lenH,lenD+1,"%d",blockDepth);
 
             runCommand = appendCommandLineFlag(runCommand,BLOCKSIZE_FLAG,intStr);
         }
 
-        g_print("Running: %s\n",runCommand);
+        g_print("---\n");
+        g_print("%s\n",runCommand);
+        g_print("---\n");
+
         system(runCommand);
+        
         g_print("---\n");
         
         //load folder of output
