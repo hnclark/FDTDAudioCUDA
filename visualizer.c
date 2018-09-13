@@ -4,6 +4,7 @@
 
 #define SIM_STATE_NAME "sim_state.bin"
 #define AUDIO_LEDGER_NAME "audio_ledger.txt"
+#define AUDIO_OUT_LEDGER "audio_out_ledger.txt"
 
 #define SAMPLES_PER_PIXEL 3
 #define BITS_PER_SAMPLE 8
@@ -454,7 +455,7 @@ void saveAndRunItemFunction(){
         g_print("---\n");
 
         system(runCommand);
-        
+
         g_print("---\n");
         
         //load folder of output

@@ -10,6 +10,10 @@
 
 #define SIM_STATE_NAME "sim_state.bin"
 #define AUDIO_LEDGER_NAME "audio_ledger.txt"
+#define AUDIO_OUT_LEDGER_NAME "audio_out_ledger.txt"
+
+#define AUDIO_DEFAULT_EXTENSION ".wav"
+#define AUDIO_DEFAULT_FORMAT SF_FORMAT_WAV | SF_FORMAT_DOUBLE | SF_ENDIAN_CPU
 
 #define NO_FOLDER "NONE"
 #define FOLDER_DEFAULT_PERMISSIONS S_IRWXU | S_IRWXG | S_IRWXO
@@ -17,9 +21,9 @@
 
 typedef struct{
     std::string name;
-    bool loaded;
     SNDFILE *file;
     SF_INFO info;
+    bool loaded;
 }audioFile;
 
 typedef struct{
@@ -31,8 +35,8 @@ typedef struct{
 
 
 //shared host/device constants
-int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,blockDepth,gridWidthBlocks,gridHeightBlocks,gridDepthBlocks,audioSourceCount;
-__constant__ int gridWidth_d,gridHeight_d,gridDepth_d,blockWidth_d,blockHeight_d,blockDepth_d,gridWidthBlocks_d,gridHeightBlocks_d,gridDepthBlocks_d,audioSourceCount_d;
+int gridWidth,gridHeight,gridDepth,blockWidth,blockHeight,blockDepth,gridWidthBlocks,gridHeightBlocks,gridDepthBlocks,audioSourceCount,audioOutputCount;
+__constant__ int gridWidth_d,gridHeight_d,gridDepth_d,blockWidth_d,blockHeight_d,blockDepth_d,gridWidthBlocks_d,gridHeightBlocks_d,gridDepthBlocks_d,audioSourceCount_d,audioOutputCount_d;
 
 //host only constants
 int timeSteps,gridArea;
@@ -67,6 +71,13 @@ __global__ void loadAudioSource(double *grid,coord pos,double val){
 
 
 
+__device__ double audioVal;
+__global__ void readAudioSource(double *grid,coord pos){
+    audioVal = grid[arrayPos(pos.x,pos.y,pos.z)];
+}
+
+
+
 //helper function to read header from a binary file
 void readHeaderBinary(FILE *fileIn,int *w,int *h,int *d){
     fread(w,sizeof(int),1,fileIn);
@@ -91,15 +102,13 @@ void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
     fwrite(array,sizeof(double),arrayLen,fileOut);
 }
 
+//helper function to read a line from an audio ledger file
 char *readAudioLedgerLine(FILE *fileIn,int *x,int *y,int *z){
     char *audioFileName;
     char *line;
     size_t lineBuffer = 0;
-    int lineLen = 0;
     
-    lineLen = getline(&line,&lineBuffer,fileIn);
-    
-    if(lineLen>=7){
+    if(getline(&line,&lineBuffer,fileIn)>=7){
         char *wordPtr;
         audioFileName = strtok_r(line," ",&wordPtr);
         *x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
@@ -170,11 +179,6 @@ int main(int argc, const char * argv[]){
     blockHeight = 16;
     blockDepth = 1;
 
-    //default grid configuration
-    gridWidth = 16;
-    gridHeight = 16;
-    gridDepth = 16;
-
 
 
     //handle command line arguments to modify default configuration
@@ -240,6 +244,13 @@ int main(int argc, const char * argv[]){
     printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
 
 
+    //create output folder
+    mkdir(outFolder.c_str(),FOLDER_DEFAULT_PERMISSIONS);
+    
+    //default grid configuration
+    gridWidth = 16;
+    gridHeight = 16;
+    gridDepth = 16;
 
     //default audio source settings
     audioSourceCount = 0;
@@ -263,6 +274,7 @@ int main(int argc, const char * argv[]){
         int x,y,z,index;
         char *audioFileName;
 
+        //load the next line from the audio ledger and continue if it's not NULL
         while((audioFileName = readAudioLedgerLine(inAudioLedgerFile,&x,&y,&z))!=NULL){
             index = audioSourceCount;
             audioSourceCount++;
@@ -274,18 +286,18 @@ int main(int argc, const char * argv[]){
             std::string inAudFilePath = inFolder+"/"+audioFileName;
 
             //print for debugging purposes
-            printf("Loading audio source: %s...\n",inAudFilePath.c_str());
+            printf("    Loading audio source: %s... ",inAudFilePath.c_str());
 
             audioFiles[index].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioFiles[index].info);
 
             if(sf_error(audioFiles[index].file)==SF_ERR_NO_ERROR && audioFiles[index].info.channels==1){
                 //print for debugging purposes
-                printf("    Loaded %ld frames\n",audioFiles[index].info.frames);
+                printf("Loaded %ld frames\n",audioFiles[index].info.frames);
 
                 audioFiles[index].loaded = true;
             }else{
                 //print for debugging purposes
-                printf("    Error: %s\n",sf_strerror(audioFiles[index].file));
+                printf("Could not load file\n");
 
                 audioFiles[index].loaded = false;
             }
@@ -299,6 +311,76 @@ int main(int argc, const char * argv[]){
     }else{
         //print for debugging purposes
         printf("No audio ledger file found...\n");
+    }
+
+
+
+    //default audio source settings
+    int audioOutSamplerate = 44100; //TODO: this should be set to the simulation samplerate
+
+    audioOutputCount = 0;
+
+    //audio positions and files
+    coord *audioOutPos = NULL;
+    audioFile *audioOutFiles = NULL;
+
+    //load audio ledger file
+    FILE *outAudioLedgerFile = NULL;
+    if(outFolder!=NO_FOLDER){
+        std::string outAudioLedgerName = inFolder+"/"+AUDIO_OUT_LEDGER_NAME;
+        outAudioLedgerFile = fopen(outAudioLedgerName.c_str(),"r");
+    }
+
+    //read audio ledger file
+    if(outAudioLedgerFile!=NULL){
+        //print for debugging purposes
+        printf("Using audio out ledger file...\n");
+                
+        int x,y,z,index;
+        char *audioFileName;
+
+        //load the next line from the audio ledger and continue if it's not NULL
+        while((audioFileName = readAudioLedgerLine(outAudioLedgerFile,&x,&y,&z))!=NULL){
+            index = audioOutputCount;
+            audioOutputCount++;
+
+            //allocate memory for new audioFile and position
+            audioOutPos = (coord *)realloc(audioOutPos,audioOutputCount*sizeof(coord));
+            audioOutFiles = (audioFile *)realloc(audioOutFiles,audioOutputCount*sizeof(audioFile));
+
+            std::string outAudFilePath = outFolder+"/"+audioFileName+AUDIO_DEFAULT_EXTENSION;
+
+            //print for debugging purposes
+            printf("    Creating audio output: %s... ",outAudFilePath.c_str());
+
+            //set sfinfo
+            audioOutFiles[index].info.samplerate = audioOutSamplerate;
+            audioOutFiles[index].info.channels = 1;
+            audioOutFiles[index].info.format = AUDIO_DEFAULT_FORMAT;
+
+            audioOutFiles[index].file = sf_open(outAudFilePath.c_str(),SFM_WRITE,&audioFiles[index].info);
+
+            if(sf_error(audioOutFiles[index].file)==SF_ERR_NO_ERROR){
+                //print for debugging purposes
+                printf("Created file\n");
+
+                audioOutFiles[index].loaded = true;
+            }else{
+                //print for debugging purposes
+                printf("Could not create file\n");
+
+                audioOutFiles[index].loaded = false;
+            }
+
+            audioOutPos[index].x = x;
+            audioOutPos[index].y = y;
+            audioOutPos[index].z = z;
+        }
+
+        fclose(outAudioLedgerFile);
+    }else{
+        //print for debugging purposes
+        printf("No audio out ledger file found...\n");
     }
 
 
@@ -346,6 +428,7 @@ int main(int argc, const char * argv[]){
     cudaMemcpyToSymbol(*(&gridHeightBlocks_d),&gridHeightBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&gridDepthBlocks_d),&gridDepthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(*(&audioSourceCount_d),&audioSourceCount,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&audioOutputCount_d),&audioOutputCount,sizeof(int),0,cudaMemcpyHostToDevice);
 
     dim3 numBlocks(gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
     dim3 blockSize(blockWidth,blockHeight,blockDepth);
@@ -400,6 +483,18 @@ int main(int argc, const char * argv[]){
         std::swap(grid_d,grid1_d);
 
         checkCudaError();
+
+        //read out audio sources
+        for(int j=0;j<audioOutputCount;j++){
+            //read audio value from each point
+            double val = 0;
+            if(audioOutFiles[j].loaded){
+                readAudioSource<<<1,1>>>(grid1_d,audioOutPos[j]); //TODO:make sure this is actually reading values to val
+                cudaMemcpyFromSymbol(&val,audioVal,sizeof(double),0,cudaMemcpyDeviceToHost);
+                cudaDeviceSynchronize();
+                sf_write_double(audioOutFiles[j].file,&val,1);
+            }
+        }
     }
 
     //only copy first grid to host, since it was computed and then swapped by kernel
@@ -408,8 +503,6 @@ int main(int argc, const char * argv[]){
     //write output
     FILE *outGridFile = NULL;
     if(outFolder!=NO_FOLDER){
-        mkdir(outFolder.c_str(),FOLDER_DEFAULT_PERMISSIONS);
-
         //create binary file
         std::string outGridFileName = outFolder+"/"+SIM_STATE_NAME;
         outGridFile = fopen(outGridFileName.c_str(),"wb");
@@ -439,11 +532,18 @@ int main(int argc, const char * argv[]){
     //free audio position data
     free(audioInPos);
 
-    //free audio file data
+    //close audio input file data
     for(int j=0;j<audioSourceCount;j++){
         sf_close(audioFiles[j].file);
     }
     free(audioFiles);
+
+    //close audio output file data
+    for(int j=0;j<audioOutputCount;j++){
+        sf_write_sync(audioOutFiles[j].file);
+        sf_close(audioOutFiles[j].file);
+    }
+    free(audioOutFiles);
 
     //end clock
     auto endTime = std::chrono::high_resolution_clock::now();
