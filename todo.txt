@@ -37,17 +37,5 @@ AUDIO_LEDGER.txt
 
 -create icon for visualizer
 
--optimize audio loading/downloading part of algorithm: load audio frames before algorithm runs, pass all audio values in at once via array with 1 thread per value, or just memcpy them to device before running(don't copy the entire audio file, just enough so it has <timesteps> amount of frames).
-
--all of sim.cu past the command line input section could be placed in another function, which is called like this: simulator(inFolder, outFolder, timesteps, gridx, gridy, gridz); this will allow c programs to simply import it via 
-
-extern "C" {
-#include "sim.h"
-}
-
-and call it with already loaded values. would require a sim.h file, and also might have linker problems
-
-
-
 -simulator could use getopt to check command line inputs. and should use the flags indicated in the visualizer.c header
 
