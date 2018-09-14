@@ -437,15 +437,9 @@ void saveAndRunItemFunction(){
             runCommand = appendCommandLineFlag(runCommand,TIMESTEP_FLAG,intStr);
         }
         if(blockWidth && blockHeight && blockDepth){
-            int lenW = snprintf(NULL,0,"%d ",blockWidth);
-            int lenH = snprintf(NULL,0,"%d ",blockHeight);
-            int lenD = snprintf(NULL,0,"%d",blockDepth);
-
-            char* intStr = (char *)malloc(lenW+lenH+lenD+1);
-
-            snprintf(intStr,lenW+1,"%d ",blockWidth);
-            snprintf(intStr+lenW,lenH+1,"%d ",blockHeight);
-            snprintf(intStr+lenW+lenH,lenD+1,"%d",blockDepth);
+            int len = snprintf(NULL,0,"%d %d %d",blockWidth,blockHeight,blockDepth);
+            char* intStr = (char *)malloc(len+1);
+            snprintf(intStr,len+1,"%d %d %d",blockWidth,blockHeight,blockDepth);
 
             runCommand = appendCommandLineFlag(runCommand,BLOCKSIZE_FLAG,intStr);
         }
