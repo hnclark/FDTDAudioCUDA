@@ -20,11 +20,13 @@
 
 
 
+//audio file struct
 typedef struct{
     SNDFILE *file;
     SF_INFO info;
 }audioFile;
 
+//coordinate struct
 typedef struct{
     int x;
     int y;
@@ -46,8 +48,6 @@ __device__ int arrayPos(const int &x,const int &y,const int &z){
     return (z*gridWidth_d*gridHeight_d)+(y*gridWidth_d)+x;
 }
 
-
-
 __global__ void solver(double *grid,double *grid1){
     int xpos = (blockIdx.x*blockWidth_d)+threadIdx.x;
     int ypos = (blockIdx.y*blockHeight_d)+threadIdx.y;
@@ -62,8 +62,6 @@ __global__ void solver(double *grid,double *grid1){
     }
 }
 
-
-
 __global__ void loadAudioSources(double *grid,coord *pos,double *source,int frame){
     int index = blockIdx.x;
     int frameIndex = (index*timeSteps_d)+frame;
@@ -71,13 +69,21 @@ __global__ void loadAudioSources(double *grid,coord *pos,double *source,int fram
     grid[arrayPos(pos[index].x,pos[index].y,pos[index].z)] = source[frameIndex];
 }
 
-
-
 __global__ void readAudioOutputs(double *grid,coord *pos,double *output,int frame){
     int index = blockIdx.x;
     int frameIndex = (index*timeSteps_d)+frame;
 
     output[frameIndex] = grid[arrayPos(pos[index].x,pos[index].y,pos[index].z)];
+}
+
+
+
+//check for and print cuda errors
+void checkCudaError(){
+    cudaError_t error = cudaGetLastError();
+    if(error != cudaSuccess){
+        printf("%s\n",cudaGetErrorString(error));
+    }
 }
 
 
@@ -127,20 +133,12 @@ char *readAudioLedgerLine(FILE *fileIn,int *x,int *y,int *z){
 
 
 
-//check for and print cuda errors
-void checkCudaError(){
-    cudaError_t error = cudaGetLastError();
-    if(error != cudaSuccess){
-        printf("%s\n",cudaGetErrorString(error));
-    }
-}
-
-
-
 int main(int argc, const char * argv[]){
     //start clock
     auto startTime = std::chrono::high_resolution_clock::now();
 
+
+    
     //default input and output files
     std::string inFolder = "input";
     std::string outFolder = "output";
@@ -182,8 +180,6 @@ int main(int argc, const char * argv[]){
     blockWidth = 16;
     blockHeight = 16;
     blockDepth = 1;
-
-
 
     //handle command line arguments to modify default configuration
     int optionLen = 0;
@@ -242,25 +238,21 @@ int main(int argc, const char * argv[]){
     
 
     //print for debugging purposes
-    printf("In folder = %s\n",inFolder.c_str());
-    printf("Out folder = %s\n",outFolder.c_str());
-    printf("Time steps = %d\n",timeSteps);
-    printf("Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
+    printf("Basic settings...\n");
+    printf("    In folder = %s\n",inFolder.c_str());
+    printf("    Out folder = %s\n",outFolder.c_str());
+    printf("    Block dimensions = %dx%dx%d\n",blockWidth,blockHeight,blockDepth);
+    printf("    Time steps = %d\n",timeSteps);
 
 
 
     //create output folder
     mkdir(outFolder.c_str(),FOLDER_DEFAULT_PERMISSIONS);
-    
-    //default grid configuration
-    gridWidth = 16;
-    gridHeight = 16;
-    gridDepth = 16;
 
-    //default audio source settings
-    audioSourceCount = 0;
+
 
     //audio positions and files
+    audioSourceCount = 0;
     coord *audioSourcePos_h = NULL;
     audioFile *audioSourceFiles = NULL;
 
@@ -284,31 +276,38 @@ int main(int argc, const char * argv[]){
             index = audioSourceCount;
             audioSourceCount++;
 
-            //allocate memory for new file and position
-            audioSourcePos_h = (coord *)realloc(audioSourcePos_h,audioSourceCount*sizeof(coord));
+            //load file
             audioSourceFiles = (audioFile *)realloc(audioSourceFiles,audioSourceCount*sizeof(audioFile));
 
+            std::string audioFilePath = inFolder+"/"+audioFileName;
+            audioSourceFiles[index].file = sf_open(audioFilePath.c_str(),SFM_READ,&audioSourceFiles[index].info);
+
             //load pos
+            audioSourcePos_h = (coord *)realloc(audioSourcePos_h,audioSourceCount*sizeof(coord));
             audioSourcePos_h[index].x = x;
             audioSourcePos_h[index].y = y;
             audioSourcePos_h[index].z = z;
 
-            //load file
-            std::string inAudFilePath = inFolder+"/"+audioFileName;
-            audioSourceFiles[index].file = sf_open(inAudFilePath.c_str(),SFM_READ,&audioSourceFiles[index].info);
-
             //print for debugging purposes
-            printf("    Loading audio source: %s... ",inAudFilePath.c_str());
+            printf("    Loading audio source: %s... ",audioFilePath.c_str());
 
-            if(sf_error(audioSourceFiles[index].file)==SF_ERR_NO_ERROR && audioSourceFiles[index].info.channels==1){
-                //print for debugging purposes
-                printf("Loaded file\n");
+            if(sf_error(audioSourceFiles[index].file)==SF_ERR_NO_ERROR){
+                if(audioSourceFiles[index].info.channels!=1){
+                    free(audioSourceFiles[index].file);
+                    audioSourceFiles[index].file = NULL;
+
+                    //print for debugging purposes
+                    printf(">1 channels, skipped file\n");
+                }else{
+                    //print for debugging purposes
+                    printf("Loaded file\n");
+                }
             }else{
-                audioSourceFiles[index].file = NULL;
-
                 //print for debugging purposes
                 printf("Could not load file\n");
             }
+
+            free(audioFileName);
         }
 
         fclose(inAudioLedgerFile);
@@ -319,12 +318,11 @@ int main(int argc, const char * argv[]){
 
 
 
-    //default audio source settings
+    //default audio output settings
     int audioOutSamplerate = 44100; //TODO: this should be set to the simulation samplerate
 
-    audioOutputCount = 0;
-
     //audio positions and files
+    audioOutputCount = 0;
     coord *audioOutputPos_h = NULL;
     audioFile *audioOutputFiles = NULL;
 
@@ -348,26 +346,23 @@ int main(int argc, const char * argv[]){
             index = audioOutputCount;
             audioOutputCount++;
 
-            //allocate memory for new audioFile and position
-            audioOutputPos_h = (coord *)realloc(audioOutputPos_h,audioOutputCount*sizeof(coord));
+            //create file
             audioOutputFiles = (audioFile *)realloc(audioOutputFiles,audioOutputCount*sizeof(audioFile));
 
+            std::string audioFilePath = outFolder+"/"+audioFileName+AUDIO_DEFAULT_EXTENSION;
+            audioOutputFiles[index].info.samplerate = audioOutSamplerate;
+            audioOutputFiles[index].info.channels = 1;
+            audioOutputFiles[index].info.format = AUDIO_DEFAULT_FORMAT;
+            audioOutputFiles[index].file = sf_open(audioFilePath.c_str(),SFM_WRITE,&audioOutputFiles[index].info);
+
             //load pos
+            audioOutputPos_h = (coord *)realloc(audioOutputPos_h,audioOutputCount*sizeof(coord));
             audioOutputPos_h[index].x = x;
             audioOutputPos_h[index].y = y;
             audioOutputPos_h[index].z = z;
 
-            //create file
-            std::string outAudFilePath = outFolder+"/"+audioFileName+AUDIO_DEFAULT_EXTENSION;
-
-            audioOutputFiles[index].info.samplerate = audioOutSamplerate;
-            audioOutputFiles[index].info.channels = 1;
-            audioOutputFiles[index].info.format = AUDIO_DEFAULT_FORMAT;
-
-            audioOutputFiles[index].file = sf_open(outAudFilePath.c_str(),SFM_WRITE,&audioOutputFiles[index].info);
-
             //print for debugging purposes
-            printf("    Creating audio output: %s... ",outAudFilePath.c_str());
+            printf("    Creating audio output: %s... ",audioFilePath.c_str());
 
             if(sf_error(audioOutputFiles[index].file)==SF_ERR_NO_ERROR){
                 //print for debugging purposes
@@ -376,6 +371,8 @@ int main(int argc, const char * argv[]){
                 //print for debugging purposes
                 printf("Could not create file\n");
             }
+
+            free(audioFileName);
         }
 
         fclose(outAudioLedgerFile);
@@ -392,7 +389,7 @@ int main(int argc, const char * argv[]){
     size_t audioSourcePosSize = audioSourceCount*sizeof(coord);
     size_t audioOutputPosSize = audioOutputCount*sizeof(coord);
 
-    //device+host memory
+    //device+host memory pointers
     double *audioSource_h,*audioOutput_h;
     double *audioSource_d,*audioOutput_d;
 
@@ -410,8 +407,6 @@ int main(int argc, const char * argv[]){
 
     free(audioSourceFiles);
 
-
-
     //allocate device memory
     cudaMalloc((void **)&audioSource_d, audioSourceSize);
     cudaMalloc((void **)&audioOutput_d, audioOutputSize);
@@ -427,6 +422,11 @@ int main(int argc, const char * argv[]){
     cudaMemcpy(audioOutputPos_d,audioOutputPos_h,audioOutputPosSize,cudaMemcpyHostToDevice);
 
 
+
+    //default grid configuration
+    gridWidth = 16;
+    gridHeight = 16;
+    gridDepth = 16;
 
     //read binary header
     FILE *inGridFile = NULL;
@@ -460,26 +460,12 @@ int main(int argc, const char * argv[]){
 
     
 
-    //set device symbols to dimensions of grid,block,etc.
-    cudaMemcpyToSymbol(*(&gridWidth_d),&gridWidth,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&gridHeight_d),&gridHeight,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&gridDepth_d),&gridDepth,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&blockWidth_d),&blockWidth,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&blockHeight_d),&blockHeight,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&blockDepth_d),&blockDepth,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&gridWidthBlocks_d),&gridWidthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&gridHeightBlocks_d),&gridHeightBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&gridDepthBlocks_d),&gridDepthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&timeSteps_d),&timeSteps,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&audioSourceCount_d),&audioSourceCount,sizeof(int),0,cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(*(&audioOutputCount_d),&audioOutputCount,sizeof(int),0,cudaMemcpyHostToDevice);
-
     dim3 numBlocks(gridWidthBlocks,gridHeightBlocks,gridDepthBlocks);
     dim3 blockSize(blockWidth,blockHeight,blockDepth);
 
     size_t gridSize = gridWidth*gridHeight*gridDepth*sizeof(double);
 
-    //device+host memory
+    //device+host memory pointers
     double *grid_h,*grid1_h;
     double *grid_d,*grid1_d;
 
@@ -499,9 +485,6 @@ int main(int argc, const char * argv[]){
         printf("No file found, using an empty grid...\n");
     }
 
-    //grid1_h is initialized with all zeros but in the future it may need to be set
-    //(the n-2th time value it stores is used in calculation)
-
     //allocate device memory
     cudaMalloc((void **)&grid_d, gridSize);
     cudaMalloc((void **)&grid1_d, gridSize);
@@ -512,6 +495,23 @@ int main(int argc, const char * argv[]){
 
 
 
+    //set device symbols to dimensions of grid,block,etc.
+    cudaMemcpyToSymbol(*(&gridWidth_d),&gridWidth,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&gridHeight_d),&gridHeight,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&gridDepth_d),&gridDepth,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&blockWidth_d),&blockWidth,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&blockHeight_d),&blockHeight,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&blockDepth_d),&blockDepth,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&gridWidthBlocks_d),&gridWidthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&gridHeightBlocks_d),&gridHeightBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&gridDepthBlocks_d),&gridDepthBlocks,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&timeSteps_d),&timeSteps,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&audioSourceCount_d),&audioSourceCount,sizeof(int),0,cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(*(&audioOutputCount_d),&audioOutputCount,sizeof(int),0,cudaMemcpyHostToDevice);
+
+
+
+    //run the main loop
     for(int i=0;i<timeSteps;i++){
         //load in audio sources
         loadAudioSources<<<audioSourceCount,1>>>(grid_d,audioSourcePos_d,audioSource_d,i);
@@ -534,7 +534,7 @@ int main(int argc, const char * argv[]){
     //copy first grid to host, since it was computed and then swapped by kernel
     cudaMemcpy(grid_h,grid_d,gridSize,cudaMemcpyDeviceToHost);
     
-    //write output
+    //create grid output file
     FILE *outGridFile = NULL;
     if(outFolder!=NO_FOLDER){
         //create binary file
@@ -542,7 +542,7 @@ int main(int argc, const char * argv[]){
         outGridFile = fopen(outGridFileName.c_str(),"wb");
     }
 
-    //write binary file
+    //write output file
     if(outGridFile!=NULL){
         writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
         writeDoublesBinary(outGridFile,grid_h,gridArea);
@@ -573,22 +573,20 @@ int main(int argc, const char * argv[]){
     //free host memory
     free(grid_h);
     free(grid1_h);
-
     free(audioSourcePos_h);
     free(audioOutputPos_h);
-
     free(audioSource_h);
     free(audioOutput_h);
 
     //free device memory
     cudaFree(grid_d);
     cudaFree(grid1_d);
-
     cudaFree(audioSourcePos_d);
     cudaFree(audioOutputPos_d);
-
     cudaFree(audioSource_d);
     cudaFree(audioOutput_d);
+
+
 
     //end clock
     auto endTime = std::chrono::high_resolution_clock::now();
