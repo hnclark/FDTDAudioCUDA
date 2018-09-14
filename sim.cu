@@ -113,12 +113,12 @@ void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
 }
 
 //helper function to read a line from an audio ledger file
-char *readAudioLedgerLine(FILE *fileIn,int *x,int *y,int *z){
+char *readAudioLedgerLine(FILE *file,int *x,int *y,int *z){
     char *audioFileName;
     char *line;
     size_t lineBuffer = 0;
     
-    if(getline(&line,&lineBuffer,fileIn)>=7){
+    if(getline(&line,&lineBuffer,file)>=7){
         char *wordPtr;
         audioFileName = strtok_r(line," ",&wordPtr);
         *x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
@@ -131,6 +131,10 @@ char *readAudioLedgerLine(FILE *fileIn,int *x,int *y,int *z){
     }
 }
 
+void writeAudioLedgerLine(FILE *file,const char *name,int x,int y,int z){
+    fprintf(file,"%s %d %d %d\n",name,x,y,z);
+}
+
 
 
 int main(int argc, const char * argv[]){
@@ -138,7 +142,7 @@ int main(int argc, const char * argv[]){
     auto startTime = std::chrono::high_resolution_clock::now();
 
 
-    
+
     //default input and output files
     std::string inFolder = "input";
     std::string outFolder = "output";
@@ -257,22 +261,23 @@ int main(int argc, const char * argv[]){
     audioFile *audioSourceFiles = NULL;
 
     //load audio ledger file
-    FILE *inAudioLedgerFile = NULL;
+    FILE *audioSourceLedgerFile = NULL;
     if(inFolder!=NO_FOLDER){
-        std::string inAudioLedgerName = inFolder+"/"+AUDIO_LEDGER_NAME;
-        inAudioLedgerFile = fopen(inAudioLedgerName.c_str(),"r");
+        std::string audioInputLedgerName = inFolder+"/"+AUDIO_LEDGER_NAME;
+        audioSourceLedgerFile = fopen(audioInputLedgerName.c_str(),"r");
     }
 
     //read audio ledger file
-    if(inAudioLedgerFile!=NULL){
+    if(audioSourceLedgerFile!=NULL){
         //print for debugging purposes
         printf("Using audio ledger file...\n");
         
-        int x,y,z,index;
+        int index;
+        coord pos;
         char *audioFileName;
 
         //load the next line from the audio ledger and continue if it's not NULL
-        while((audioFileName = readAudioLedgerLine(inAudioLedgerFile,&x,&y,&z))!=NULL){
+        while((audioFileName = readAudioLedgerLine(audioSourceLedgerFile,&pos.x,&pos.y,&pos.z))!=NULL){
             index = audioSourceCount;
             audioSourceCount++;
 
@@ -284,9 +289,7 @@ int main(int argc, const char * argv[]){
 
             //load pos
             audioSourcePos_h = (coord *)realloc(audioSourcePos_h,audioSourceCount*sizeof(coord));
-            audioSourcePos_h[index].x = x;
-            audioSourcePos_h[index].y = y;
-            audioSourcePos_h[index].z = z;
+            audioSourcePos_h[index] = pos;
 
             //print for debugging purposes
             printf("    Loading audio source: %s... ",audioFilePath.c_str());
@@ -310,7 +313,7 @@ int main(int argc, const char * argv[]){
             free(audioFileName);
         }
 
-        fclose(inAudioLedgerFile);
+        fclose(audioSourceLedgerFile);
     }else{
         //print for debugging purposes
         printf("No audio ledger file found...\n");
@@ -319,47 +322,56 @@ int main(int argc, const char * argv[]){
 
 
     //default audio output settings
-    int audioOutSamplerate = 44100; //TODO: this should be set to the simulation samplerate
+    int audioOutputSamplerate = 44100; //TODO: this should be set to the simulation samplerate
 
     //audio positions and files
     audioOutputCount = 0;
     coord *audioOutputPos_h = NULL;
     audioFile *audioOutputFiles = NULL;
 
-    //load audio ledger file
-    FILE *outAudioLedgerFile = NULL;
+    //load audio output ledger file
+    FILE *audioOutputLedgerFile = NULL;
+    FILE *audioOutputFolderLedgerFile = NULL;
     if(outFolder!=NO_FOLDER){
-        std::string outAudioLedgerName = inFolder+"/"+AUDIO_OUT_LEDGER_NAME;
-        outAudioLedgerFile = fopen(outAudioLedgerName.c_str(),"r");
+        std::string audioOutputLedgerName = inFolder+"/"+AUDIO_OUT_LEDGER_NAME;
+        audioOutputLedgerFile = fopen(audioOutputLedgerName.c_str(),"r");
+
+        std::string audioOutputFolderLedgerName = outFolder+"/"+AUDIO_LEDGER_NAME;
+        audioOutputFolderLedgerFile = fopen(audioOutputFolderLedgerName.c_str(),"w");
     }
 
-    //read audio ledger file
-    if(outAudioLedgerFile!=NULL){
+    //read audio output ledger file
+    if(audioOutputLedgerFile!=NULL && audioOutputFolderLedgerFile!=NULL){
         //print for debugging purposes
-        printf("Using audio out ledger file...\n");
+        printf("Using audio output ledger file...\n");
                 
-        int x,y,z,index;
+        int index;
+        coord pos;
         char *audioFileName;
 
-        //load the next line from the audio ledger and continue if it's not NULL
-        while((audioFileName = readAudioLedgerLine(outAudioLedgerFile,&x,&y,&z))!=NULL){
+        //load the next line from the output audio ledger and continue if it's not NULL
+        while((audioFileName = readAudioLedgerLine(audioOutputLedgerFile,&pos.x,&pos.y,&pos.z))!=NULL){
             index = audioOutputCount;
             audioOutputCount++;
 
             //create file
             audioOutputFiles = (audioFile *)realloc(audioOutputFiles,audioOutputCount*sizeof(audioFile));
 
-            std::string audioFilePath = outFolder+"/"+audioFileName+AUDIO_DEFAULT_EXTENSION;
-            audioOutputFiles[index].info.samplerate = audioOutSamplerate;
+            std::string audioFileFullName(audioFileName);
+            audioFileFullName = audioFileFullName+AUDIO_DEFAULT_EXTENSION;
+
+            std::string audioFilePath = outFolder+"/"+audioFileFullName;
+            audioOutputFiles[index].info.samplerate = audioOutputSamplerate;
             audioOutputFiles[index].info.channels = 1;
             audioOutputFiles[index].info.format = AUDIO_DEFAULT_FORMAT;
             audioOutputFiles[index].file = sf_open(audioFilePath.c_str(),SFM_WRITE,&audioOutputFiles[index].info);
 
+            //write a line to the output folder audio ledger
+            writeAudioLedgerLine(audioOutputFolderLedgerFile,audioFileFullName.c_str(),pos.x,pos.y,pos.z);
+
             //load pos
             audioOutputPos_h = (coord *)realloc(audioOutputPos_h,audioOutputCount*sizeof(coord));
-            audioOutputPos_h[index].x = x;
-            audioOutputPos_h[index].y = y;
-            audioOutputPos_h[index].z = z;
+            audioOutputPos_h[index] = pos;
 
             //print for debugging purposes
             printf("    Creating audio output: %s... ",audioFilePath.c_str());
@@ -375,10 +387,11 @@ int main(int argc, const char * argv[]){
             free(audioFileName);
         }
 
-        fclose(outAudioLedgerFile);
+        fclose(audioOutputLedgerFile);
+        fclose(audioOutputFolderLedgerFile);
     }else{
         //print for debugging purposes
-        printf("No audio out ledger file found...\n");
+        printf("No audio output ledger file found...\n");
     }
 
 
