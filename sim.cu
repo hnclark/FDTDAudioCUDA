@@ -292,7 +292,7 @@ int main(int argc, const char * argv[]){
             audioSourcePos_h[index] = pos;
 
             //print for debugging purposes
-            printf("    Loading audio source: %s... ",audioFilePath.c_str());
+            printf("    Loading audio source: %s... ",audioFileName);
 
             if(sf_error(audioSourceFiles[index].file)==SF_ERR_NO_ERROR){
                 if(audioSourceFiles[index].info.channels!=1){
@@ -335,13 +335,10 @@ int main(int argc, const char * argv[]){
     if(outFolder!=NO_FOLDER){
         std::string audioOutputLedgerName = inFolder+"/"+AUDIO_OUT_LEDGER_NAME;
         audioOutputLedgerFile = fopen(audioOutputLedgerName.c_str(),"r");
-
-        std::string audioOutputFolderLedgerName = outFolder+"/"+AUDIO_LEDGER_NAME;
-        audioOutputFolderLedgerFile = fopen(audioOutputFolderLedgerName.c_str(),"w");
     }
 
     //read audio output ledger file
-    if(audioOutputLedgerFile!=NULL && audioOutputFolderLedgerFile!=NULL){
+    if(audioOutputLedgerFile!=NULL){
         //print for debugging purposes
         printf("Using audio output ledger file...\n");
                 
@@ -351,6 +348,11 @@ int main(int argc, const char * argv[]){
 
         //load the next line from the output audio ledger and continue if it's not NULL
         while((audioFileName = readAudioLedgerLine(audioOutputLedgerFile,&pos.x,&pos.y,&pos.z))!=NULL){
+            if(audioOutputFolderLedgerFile==NULL){
+                std::string audioOutputFolderLedgerName = outFolder+"/"+AUDIO_LEDGER_NAME;
+                audioOutputFolderLedgerFile = fopen(audioOutputFolderLedgerName.c_str(),"w");
+            }
+
             index = audioOutputCount;
             audioOutputCount++;
 
@@ -367,14 +369,16 @@ int main(int argc, const char * argv[]){
             audioOutputFiles[index].file = sf_open(audioFilePath.c_str(),SFM_WRITE,&audioOutputFiles[index].info);
 
             //write a line to the output folder audio ledger
-            writeAudioLedgerLine(audioOutputFolderLedgerFile,audioFileFullName.c_str(),pos.x,pos.y,pos.z);
+            if(audioOutputFolderLedgerFile!=NULL){
+                writeAudioLedgerLine(audioOutputFolderLedgerFile,audioFileFullName.c_str(),pos.x,pos.y,pos.z);
+            }
 
             //load pos
             audioOutputPos_h = (coord *)realloc(audioOutputPos_h,audioOutputCount*sizeof(coord));
             audioOutputPos_h[index] = pos;
 
             //print for debugging purposes
-            printf("    Creating audio output: %s... ",audioFilePath.c_str());
+            printf("    Creating audio output: %s... ",audioFileFullName.c_str());
 
             if(sf_error(audioOutputFiles[index].file)==SF_ERR_NO_ERROR){
                 //print for debugging purposes
@@ -527,8 +531,10 @@ int main(int argc, const char * argv[]){
     //run the main loop
     for(int i=0;i<timeSteps;i++){
         //load in audio sources
-        loadAudioSources<<<audioSourceCount,1>>>(grid_d,audioSourcePos_d,audioSource_d,i);
-        cudaDeviceSynchronize();
+        if(audioSourceCount){
+            loadAudioSources<<<audioSourceCount,1>>>(grid_d,audioSourcePos_d,audioSource_d,i);
+            cudaDeviceSynchronize();
+        }
 
         //solve FDTD
         solver<<<numBlocks,blockSize>>>(grid_d,grid1_d);
@@ -536,8 +542,10 @@ int main(int argc, const char * argv[]){
         std::swap(grid_d,grid1_d);
 
         //read out audio sources
-        readAudioOutputs<<<audioOutputCount,1>>>(grid1_d,audioOutputPos_d,audioOutput_d,i);
-        cudaDeviceSynchronize();
+        if(audioOutputCount){
+            readAudioOutputs<<<audioOutputCount,1>>>(grid1_d,audioOutputPos_d,audioOutput_d,i);
+            cudaDeviceSynchronize();
+        }
 
         checkCudaError();
     }
