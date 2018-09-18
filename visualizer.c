@@ -9,6 +9,8 @@
 #define SAMPLES_PER_PIXEL 3
 #define BITS_PER_SAMPLE 8
 
+#define DEFAULT_PADDING 3
+
 #define BASE_COMMAND "./sim"
 
 #define FLAG_FRONT " -"
@@ -85,6 +87,14 @@ int newGridDepth = 1;
 GtkWidget* gridSizeX;
 GtkWidget* gridSizeY;
 GtkWidget* gridSizeZ;
+
+//Simulation setting dialog options
+GtkWidget* simSettingFolderButton;
+GtkWidget* simSettingFolderText;
+GtkWidget* simSettingTimesteps;
+GtkWidget* simSettingBlockWidth;
+GtkWidget* simSettingBlockHeight;
+GtkWidget* simSettingBlockDepth;
 
 //indicates whether a file is currently completely loaded into memory. Don't redraw stuff if one isn't
 gboolean fileOpen;
@@ -262,6 +272,35 @@ void cursorButtonZUpdate(){
 
 
 
+
+void timestepsUpdate(){
+    timesteps = gtk_spin_button_get_value(GTK_SPIN_BUTTON(simSettingTimesteps));
+}
+
+void blockWidthUpdate(){
+    blockWidth = gtk_spin_button_get_value(GTK_SPIN_BUTTON(simSettingBlockWidth));
+}
+
+void blockHeightUpdate(){
+    blockHeight = gtk_spin_button_get_value(GTK_SPIN_BUTTON(simSettingBlockHeight));
+}
+
+void blockDepthUpdate(){
+    blockDepth = gtk_spin_button_get_value(GTK_SPIN_BUTTON(simSettingBlockDepth));
+}
+
+void folderUpdate(){
+    GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Output Folder",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,NULL);
+
+    if(gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_ACCEPT){
+        currentOutFolder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        gtk_label_set_text(GTK_LABEL(simSettingFolderText),currentOutFolder);
+    }
+    gtk_widget_destroy(dialog);
+}
+
+
+
 void loadFolder(char *inFolder){
     fileOpenUpdate(FALSE);
     fileSavedUpdate(FALSE);
@@ -418,42 +457,92 @@ void saveAndRunItemFunction(){
     }
 
     if(fileSaved){
-        //TODO:add option to change output folder, timesteps, and block size
+        //prompt user to choose basic settings
+        GtkWidget* settingDialog = gtk_dialog_new_with_buttons("Simulation Settings",GTK_WINDOW(window),GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,"Cancel",GTK_RESPONSE_CANCEL,"Run",GTK_RESPONSE_ACCEPT,NULL);
+        GtkWidget* settingDialogOptionBox = gtk_dialog_get_content_area(GTK_DIALOG(settingDialog));
 
-        char *runCommand = (char *)malloc(strlen(BASE_COMMAND)*sizeof(char));
-        strcpy(runCommand,BASE_COMMAND);
+        //the output folder settings
+        GtkWidget* simSettingFolderBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingFolderBox,TRUE,TRUE,0);
 
-        if(currentInFolder!=NULL){
-            runCommand = appendCommandLineFlag(runCommand,INPUT_FLAG,currentInFolder);
+        simSettingFolderButton = gtk_button_new_from_icon_name("folder-new",GTK_ICON_SIZE_BUTTON);
+        gtk_box_pack_start(GTK_BOX(simSettingFolderBox),simSettingFolderButton,FALSE,FALSE,DEFAULT_PADDING);
+        g_signal_connect(G_OBJECT(simSettingFolderButton),"clicked",G_CALLBACK(folderUpdate),NULL);
+
+        simSettingFolderText = gtk_label_new(currentOutFolder);
+        gtk_box_pack_start(GTK_BOX(simSettingFolderBox),simSettingFolderText,FALSE,FALSE,DEFAULT_PADDING);
+
+        //line seperator
+        GtkWidget* sep1 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),sep1,TRUE,TRUE,DEFAULT_PADDING);
+
+        //the timestep settings
+        simSettingTimesteps = gtk_spin_button_new_with_range(0,INT_MAX,1);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingTimesteps,TRUE,TRUE,0);
+        g_signal_connect(G_OBJECT(simSettingTimesteps),"value-changed",G_CALLBACK(timestepsUpdate),NULL);
+        timestepsUpdate();
+
+        //line seperator
+        GtkWidget* sep2 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),sep2,TRUE,TRUE,DEFAULT_PADDING);
+
+        //the block size settings
+        simSettingBlockWidth = gtk_spin_button_new_with_range(0,INT_MAX,1);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingBlockWidth,TRUE,TRUE,0);
+        g_signal_connect(G_OBJECT(simSettingBlockWidth),"value-changed",G_CALLBACK(blockWidthUpdate),NULL);
+        blockWidthUpdate();
+
+        simSettingBlockHeight = gtk_spin_button_new_with_range(0,INT_MAX,1);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingBlockHeight,TRUE,TRUE,0);
+        g_signal_connect(G_OBJECT(simSettingBlockHeight),"value-changed",G_CALLBACK(blockHeightUpdate),NULL);
+        blockHeightUpdate();
+
+        simSettingBlockDepth = gtk_spin_button_new_with_range(0,INT_MAX,1);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingBlockDepth,TRUE,TRUE,0);
+        g_signal_connect(G_OBJECT(simSettingBlockDepth),"value-changed",G_CALLBACK(blockDepthUpdate),NULL);
+        blockDepthUpdate();
+
+        gtk_window_set_resizable(GTK_WINDOW(settingDialog), FALSE);
+
+        gtk_widget_show_all(settingDialog);
+
+        if(gtk_dialog_run(GTK_DIALOG(settingDialog))==GTK_RESPONSE_ACCEPT){
+            char *runCommand = (char *)malloc(strlen(BASE_COMMAND)*sizeof(char));
+            strcpy(runCommand,BASE_COMMAND);
+
+            if(currentInFolder!=NULL){
+                runCommand = appendCommandLineFlag(runCommand,INPUT_FLAG,currentInFolder);
+            }
+            if(currentOutFolder!=NULL){
+                runCommand = appendCommandLineFlag(runCommand,OUTPUT_FLAG,currentOutFolder);
+            }
+            if(timesteps){
+                int len = snprintf(NULL,0,"%d",timesteps);
+                char* intStr = (char *)malloc(len+1);
+                snprintf(intStr,len+1,"%d",timesteps);
+
+                runCommand = appendCommandLineFlag(runCommand,TIMESTEP_FLAG,intStr);
+            }
+            if(blockWidth && blockHeight && blockDepth){
+                int len = snprintf(NULL,0,"%d %d %d",blockWidth,blockHeight,blockDepth);
+                char* intStr = (char *)malloc(len+1);
+                snprintf(intStr,len+1,"%d %d %d",blockWidth,blockHeight,blockDepth);
+
+                runCommand = appendCommandLineFlag(runCommand,BLOCKSIZE_FLAG,intStr);
+            }
+
+            g_print("---\n");
+            g_print("%s\n",runCommand);
+            g_print("---\n");
+
+            system(runCommand);
+
+            g_print("---\n");
+            
+            //load folder of output
+            loadFolder(currentOutFolder);
         }
-        if(currentOutFolder!=NULL){
-            runCommand = appendCommandLineFlag(runCommand,OUTPUT_FLAG,currentOutFolder);
-        }
-        if(timesteps){
-            int len = snprintf(NULL,0,"%d",timesteps);
-            char* intStr = (char *)malloc(len+1);
-            snprintf(intStr,len+1,"%d",timesteps);
-
-            runCommand = appendCommandLineFlag(runCommand,TIMESTEP_FLAG,intStr);
-        }
-        if(blockWidth && blockHeight && blockDepth){
-            int len = snprintf(NULL,0,"%d %d %d",blockWidth,blockHeight,blockDepth);
-            char* intStr = (char *)malloc(len+1);
-            snprintf(intStr,len+1,"%d %d %d",blockWidth,blockHeight,blockDepth);
-
-            runCommand = appendCommandLineFlag(runCommand,BLOCKSIZE_FLAG,intStr);
-        }
-
-        g_print("---\n");
-        g_print("%s\n",runCommand);
-        g_print("---\n");
-
-        system(runCommand);
-
-        g_print("---\n");
-        
-        //load folder of output
-        loadFolder(currentOutFolder);
+        gtk_widget_destroy(settingDialog);
     }
 }
 
