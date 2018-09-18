@@ -4,8 +4,6 @@ REMINDER:
 
 TODO:
 
--implement all comments labelled TODO in visualizer.c
-
 -add audio sources and outputs to visualizer
 
 -implement new equation in simulator

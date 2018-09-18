@@ -106,12 +106,12 @@ char *currentInFolder = NULL;
 char *currentOutFolder = "output";
 
 //timesteps of simulation
-int timesteps = 0;
+int timesteps = 1;
 
 //block size to be used in simulation
-int blockWidth = 0;
-int blockHeight = 0;
-int blockDepth = 0;
+int blockWidth = 16;
+int blockHeight = 16;
+int blockDepth = 1;
 
 //whether the file has been saved or not
 gboolean fileSaved;
@@ -462,43 +462,54 @@ void saveAndRunItemFunction(){
         GtkWidget* settingDialogOptionBox = gtk_dialog_get_content_area(GTK_DIALOG(settingDialog));
 
         //the output folder settings
+        GtkWidget* simSettingFolderFrame = gtk_frame_new("Output Folder");
+        gtk_container_set_border_width(GTK_CONTAINER(simSettingFolderFrame),DEFAULT_PADDING);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingFolderFrame,TRUE,TRUE,0);
+
         GtkWidget* simSettingFolderBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingFolderBox,TRUE,TRUE,0);
+        gtk_container_add(GTK_CONTAINER(simSettingFolderFrame),simSettingFolderBox);
 
         simSettingFolderButton = gtk_button_new_from_icon_name("folder-new",GTK_ICON_SIZE_BUTTON);
-        gtk_box_pack_start(GTK_BOX(simSettingFolderBox),simSettingFolderButton,FALSE,FALSE,DEFAULT_PADDING);
+        gtk_box_pack_start(GTK_BOX(simSettingFolderBox),simSettingFolderButton,FALSE,FALSE,0);
         g_signal_connect(G_OBJECT(simSettingFolderButton),"clicked",G_CALLBACK(folderUpdate),NULL);
 
         simSettingFolderText = gtk_label_new(currentOutFolder);
         gtk_box_pack_start(GTK_BOX(simSettingFolderBox),simSettingFolderText,FALSE,FALSE,DEFAULT_PADDING);
 
-        //line seperator
-        GtkWidget* sep1 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
-        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),sep1,TRUE,TRUE,DEFAULT_PADDING);
-
         //the timestep settings
+        GtkWidget* simSettingTimestepFrame = gtk_frame_new("Time Steps");
+        gtk_container_set_border_width(GTK_CONTAINER(simSettingTimestepFrame),DEFAULT_PADDING);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingTimestepFrame,TRUE,TRUE,0);
+
         simSettingTimesteps = gtk_spin_button_new_with_range(0,INT_MAX,1);
-        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingTimesteps,TRUE,TRUE,0);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(simSettingTimesteps),timesteps);
+        gtk_container_add(GTK_CONTAINER(simSettingTimestepFrame),simSettingTimesteps);
         g_signal_connect(G_OBJECT(simSettingTimesteps),"value-changed",G_CALLBACK(timestepsUpdate),NULL);
         timestepsUpdate();
 
-        //line seperator
-        GtkWidget* sep2 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
-        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),sep2,TRUE,TRUE,DEFAULT_PADDING);
-
         //the block size settings
+        GtkWidget* simSettingBlockSizeFrame = gtk_frame_new("Block Dimensions");
+        gtk_container_set_border_width(GTK_CONTAINER(simSettingBlockSizeFrame),DEFAULT_PADDING);
+        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingBlockSizeFrame,TRUE,TRUE,0);
+
+        GtkWidget* simSettingBlockSizeBox = gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+        gtk_container_add(GTK_CONTAINER(simSettingBlockSizeFrame),simSettingBlockSizeBox);
+
         simSettingBlockWidth = gtk_spin_button_new_with_range(0,INT_MAX,1);
-        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingBlockWidth,TRUE,TRUE,0);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(simSettingBlockWidth),blockWidth);
+        gtk_box_pack_start(GTK_BOX(simSettingBlockSizeBox),simSettingBlockWidth,TRUE,TRUE,0);
         g_signal_connect(G_OBJECT(simSettingBlockWidth),"value-changed",G_CALLBACK(blockWidthUpdate),NULL);
         blockWidthUpdate();
 
         simSettingBlockHeight = gtk_spin_button_new_with_range(0,INT_MAX,1);
-        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingBlockHeight,TRUE,TRUE,0);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(simSettingBlockHeight),blockHeight);
+        gtk_box_pack_start(GTK_BOX(simSettingBlockSizeBox),simSettingBlockHeight,TRUE,TRUE,0);
         g_signal_connect(G_OBJECT(simSettingBlockHeight),"value-changed",G_CALLBACK(blockHeightUpdate),NULL);
         blockHeightUpdate();
 
         simSettingBlockDepth = gtk_spin_button_new_with_range(0,INT_MAX,1);
-        gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),simSettingBlockDepth,TRUE,TRUE,0);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(simSettingBlockDepth),blockDepth);
+        gtk_box_pack_start(GTK_BOX(simSettingBlockSizeBox),simSettingBlockDepth,TRUE,TRUE,0);
         g_signal_connect(G_OBJECT(simSettingBlockDepth),"value-changed",G_CALLBACK(blockDepthUpdate),NULL);
         blockDepthUpdate();
 
