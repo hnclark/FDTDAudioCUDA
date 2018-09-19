@@ -24,6 +24,7 @@
 
 
 
+//pixel struct
 typedef struct{
     guchar red;
     guchar green;
@@ -619,8 +620,12 @@ int main(int argc,char *argv[]){
     
 
 
+    GtkWidget* viewBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+    gtk_container_set_border_width(GTK_CONTAINER(viewBox),DEFAULT_PADDING);
+    gtk_box_pack_start(GTK_BOX(box),viewBox,TRUE,TRUE,0);
+
     imageWindow = gtk_scrolled_window_new(NULL,NULL);
-    gtk_box_pack_start(GTK_BOX(box),imageWindow,TRUE,TRUE,0);
+    gtk_box_pack_start(GTK_BOX(viewBox),imageWindow,TRUE,TRUE,DEFAULT_PADDING);
 
     displayImage = gtk_image_new();
     gtk_container_add(GTK_CONTAINER(imageWindow),displayImage);
@@ -629,9 +634,86 @@ int main(int argc,char *argv[]){
     displayImageAllocation = g_new(GtkAllocation, 1);
     gtk_widget_get_allocation(imageWindow, displayImageAllocation);
 
-
-
     cursorPixbuf = gdk_pixbuf_new_from_file("cursor.png",NULL);
+
+
+
+
+
+
+
+
+    //
+    //TODO: all of this 
+    //
+
+    //data for widget
+
+    enum{
+        COLUMN_NAME,
+        COLUMN_X,
+        COLUMN_Y,
+        COLUMN_Z,
+        N_COLUMNS
+    };
+
+    GtkListStore* audioListStore = gtk_list_store_new(N_COLUMNS,G_TYPE_STRING,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT);
+
+
+    //audio list window contains view and add/remove buttons
+    GtkWidget* audioListWindow = gtk_frame_new("Audio Sources/Outputs");
+    gtk_box_pack_start(GTK_BOX(viewBox),audioListWindow,FALSE,FALSE,0);
+
+    GtkWidget* audioListWindowBox = gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+    gtk_container_add(GTK_CONTAINER(audioListWindow),audioListWindowBox);
+
+
+    //buttons
+    GtkWidget* audioListButtons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+    gtk_box_pack_start(GTK_BOX(audioListWindowBox),audioListButtons,FALSE,FALSE,0);
+
+    GtkWidget* audioListNewItem = gtk_button_new_from_icon_name("list-add",GTK_ICON_SIZE_BUTTON);
+    gtk_box_pack_start(GTK_BOX(audioListButtons),audioListNewItem,FALSE,FALSE,0);
+    //g_signal_connect(G_OBJECT(simSettingFolderButton),"clicked",G_CALLBACK(folderUpdate),NULL);
+
+    GtkWidget* audioListRemoveItem = gtk_button_new_from_icon_name("list-remove",GTK_ICON_SIZE_BUTTON);
+    gtk_box_pack_start(GTK_BOX(audioListButtons),audioListRemoveItem,FALSE,FALSE,0);
+    //g_signal_connect(G_OBJECT(simSettingFolderButton),"clicked",G_CALLBACK(folderUpdate),NULL);
+
+
+
+    GtkWidget* sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_box_pack_start(GTK_BOX(audioListWindowBox),sep,FALSE,FALSE,0);
+
+
+
+    //view widget
+    GtkWidget* audioListView = gtk_tree_view_new_with_model(GTK_TREE_MODEL(audioListStore));
+    gtk_box_pack_start(GTK_BOX(audioListWindowBox),audioListView,TRUE,TRUE,0);
+
+    GtkCellRenderer* textRenderer = gtk_cell_renderer_text_new();
+
+    GtkTreeViewColumn* columnName = gtk_tree_view_column_new_with_attributes("Name",textRenderer,"text",COLUMN_NAME,NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnName);
+
+    GtkTreeViewColumn* columnX = gtk_tree_view_column_new_with_attributes("X",textRenderer,"text",COLUMN_X,NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnX);
+
+    GtkTreeViewColumn* columnY = gtk_tree_view_column_new_with_attributes("Y",textRenderer,"text",COLUMN_Y,NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnY);
+
+    GtkTreeViewColumn* columnZ = gtk_tree_view_column_new_with_attributes("Z",textRenderer,"text",COLUMN_Z,NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnZ);
+
+
+
+
+
+
+
+
+
+
 
     GtkWidget* cursorBar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
     gtk_box_pack_end(GTK_BOX(box),cursorBar,FALSE,FALSE,0);
