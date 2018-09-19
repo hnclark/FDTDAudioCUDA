@@ -4,7 +4,7 @@
 
 #define SIM_STATE_NAME "sim_state.bin"
 #define AUDIO_LEDGER_NAME "audio_ledger.txt"
-#define AUDIO_OUT_LEDGER "audio_out_ledger.txt"
+#define AUDIO_OUT_LEDGER_NAME "audio_out_ledger.txt"
 
 #define SAMPLES_PER_PIXEL 3
 #define BITS_PER_SAMPLE 8
@@ -22,6 +22,17 @@
 #define GRIDSIZE_FLAG "g"
 #define BLOCKSIZE_FLAG "b"
 
+
+//data for audio list store
+enum{
+    COLUMN_ICON,
+    COLUMN_SOURCE,
+    COLUMN_X,
+    COLUMN_Y,
+    COLUMN_Z,
+    COLUMN_NAME,
+    N_COLUMNS
+};
 
 
 //pixel struct
@@ -97,6 +108,9 @@ GtkWidget* simSettingBlockWidth;
 GtkWidget* simSettingBlockHeight;
 GtkWidget* simSettingBlockDepth;
 
+//list store stuff
+GtkListStore* audioListStore;
+
 //indicates whether a file is currently completely loaded into memory. Don't redraw stuff if one isn't
 gboolean fileOpen;
 
@@ -140,6 +154,30 @@ void readDoublesBinary(FILE *fileIn,double *array,int arrayLen){
 //helper function to write grid to a binary file
 void writeDoublesBinary(FILE *fileOut,double *array,int arrayLen){
     fwrite(array,sizeof(double),arrayLen,fileOut);
+}
+
+//helper function to read a line from an audio ledger file
+char *readAudioLedgerLine(FILE *file,int *x,int *y,int *z){
+    char *audioFileName;
+    char *line;
+    size_t lineBuffer = 0;
+    
+    if(getline(&line,&lineBuffer,file)>=7){
+        char *wordPtr;
+        audioFileName = strtok_r(line," ",&wordPtr);
+        *x = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+        *y = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+        *z = strtol(strtok_r(NULL," ",&wordPtr),NULL,10);
+        
+        return audioFileName;
+    }else{
+        return NULL;
+    }
+}
+
+//helper function to write a line to an audio ledger file
+void writeAudioLedgerLine(FILE *file,const char *name,int x,int y,int z){
+    fprintf(file,"%s %d %d %d\n",name,x,y,z);
 }
 
 
@@ -302,14 +340,92 @@ void folderUpdate(){
 
 
 
+void audioListStoreAppend(gboolean source,int x,int y,int z,char *name){
+    GtkTreeIter iter;
+    gtk_list_store_append(audioListStore,&iter);
+
+    if(source){
+        gtk_list_store_set(audioListStore,&iter,COLUMN_ICON,"audio-speakers-symbolic",COLUMN_SOURCE,TRUE,COLUMN_X,x,COLUMN_Y,y,COLUMN_Z,z,COLUMN_NAME,name,-1);
+    }else{
+        gtk_list_store_set(audioListStore,&iter,COLUMN_ICON,"audio-input-microphone-symbolic",COLUMN_SOURCE,FALSE,COLUMN_X,x,COLUMN_Y,y,COLUMN_Z,z,COLUMN_NAME,name,-1);
+    }
+    fileSavedUpdate(FALSE);
+}
+
+void audioListStoreRemove(int row){
+    GtkTreeIter iter;
+    if(gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(audioListStore),&iter,NULL,row)){
+        gtk_list_store_remove(audioListStore,&iter);
+        fileSavedUpdate(FALSE);
+    }
+}
+
+void audioListStoreClear(){
+    gtk_list_store_clear(audioListStore);
+    fileSavedUpdate(FALSE);
+}
+
+
+
 void loadFolder(char *inFolder){
     fileOpenUpdate(FALSE);
     fileSavedUpdate(FALSE);
 
     currentInFolder = inFolder;
 
-    FILE *inGridFile;
+    audioListStoreClear();
 
+    //open audio ledger
+    FILE *audioLedgerFile = NULL;
+    if(inFolder!=NULL){
+        char *inFile = (char *)calloc(strlen(inFolder)+strlen(AUDIO_LEDGER_NAME)+2, sizeof(char));
+        strcpy(inFile,inFolder);
+        strcat(inFile,"/");
+        strcat(inFile,AUDIO_LEDGER_NAME);
+
+        audioLedgerFile = fopen(inFile,"r");
+        free(inFile);
+    }
+
+    if(audioLedgerFile!=NULL){   
+        int x,y,z;
+        char *audioFileName;
+
+        //load the next line from the output audio ledger and continue if it's not NULL
+        while((audioFileName = readAudioLedgerLine(audioLedgerFile,&x,&y,&z))!=NULL){
+            audioListStoreAppend(TRUE,x,y,z,audioFileName);
+            free(audioFileName);
+        }
+        fclose(audioLedgerFile);
+    }
+
+    //open audio output ledger
+    FILE *audioOutputLedgerFile = NULL;
+    if(inFolder!=NULL){
+        char *inFile = (char *)calloc(strlen(inFolder)+strlen(AUDIO_OUT_LEDGER_NAME)+2, sizeof(char));
+        strcpy(inFile,inFolder);
+        strcat(inFile,"/");
+        strcat(inFile,AUDIO_OUT_LEDGER_NAME);
+
+        audioOutputLedgerFile = fopen(inFile,"r");
+        free(inFile);
+    }
+
+
+    if(audioOutputLedgerFile!=NULL){   
+        int x,y,z;
+        char *audioFileName;
+
+        //load the next line from the output audio ledger and continue if it's not NULL
+        while((audioFileName = readAudioLedgerLine(audioOutputLedgerFile,&x,&y,&z))!=NULL){
+            audioListStoreAppend(FALSE,x,y,z,audioFileName);
+            free(audioFileName);
+        }
+        fclose(audioOutputLedgerFile);
+    }
+
+    //open grid file
+    FILE *inGridFile = NULL;
     if(inFolder!=NULL){
         char *inFile = (char *)calloc(strlen(inFolder)+strlen(SIM_STATE_NAME)+2, sizeof(char));
         strcpy(inFile,inFolder);
@@ -320,7 +436,7 @@ void loadFolder(char *inFolder){
         free(inFile);
     }
 
-    if(inFolder!=NULL && inGridFile!=NULL){
+    if(inGridFile!=NULL){
         readHeaderBinary(inGridFile,&gridWidth,&gridHeight,&gridDepth);
     }
     
@@ -330,7 +446,7 @@ void loadFolder(char *inFolder){
     free(grid);
     grid = (double *)calloc(gridSize,sizeof(double));
 
-    if(inFolder!=NULL && inGridFile!=NULL){
+    if(inGridFile!=NULL){
         readDoublesBinary(inGridFile,grid,gridArea);
         fclose(inGridFile);
 
@@ -373,17 +489,17 @@ void saveFolder(char *outFolder){
         strcpy(outFile,outFolder);
         strcat(outFile,"/");
         strcat(outFile,SIM_STATE_NAME);
-
         outGridFile = fopen(outFile,"wb");
-
+        free(outFile);
+    }
+    if(outGridFile!=NULL){
         writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
         writeDoublesBinary(outGridFile,grid,gridArea);
         fclose(outGridFile);
-        free(outFile);
-
-        currentInFolder = outFolder;
-        fileSavedUpdate(TRUE);
     }
+
+    currentInFolder = outFolder;
+    fileSavedUpdate(TRUE);
 }
 
 
@@ -621,8 +737,8 @@ int main(int argc,char *argv[]){
 
 
     GtkWidget* viewBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-    gtk_container_set_border_width(GTK_CONTAINER(viewBox),DEFAULT_PADDING);
-    gtk_box_pack_start(GTK_BOX(box),viewBox,TRUE,TRUE,0);
+    //gtk_container_set_border_width(GTK_CONTAINER(viewBox),DEFAULT_PADDING);
+    gtk_box_pack_start(GTK_BOX(box),viewBox,TRUE,TRUE,DEFAULT_PADDING);
 
     imageWindow = gtk_scrolled_window_new(NULL,NULL);
     gtk_box_pack_start(GTK_BOX(viewBox),imageWindow,TRUE,TRUE,DEFAULT_PADDING);
@@ -638,80 +754,57 @@ int main(int argc,char *argv[]){
 
 
 
-
-
-
-
-
-    //
-    //TODO: all of this 
-    //
-
-    //data for widget
-
-    enum{
-        COLUMN_NAME,
-        COLUMN_X,
-        COLUMN_Y,
-        COLUMN_Z,
-        N_COLUMNS
-    };
-
-    GtkListStore* audioListStore = gtk_list_store_new(N_COLUMNS,G_TYPE_STRING,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT);
-
-
-    //audio list window contains view and add/remove buttons
+    //frame for all audio list related widgets
     GtkWidget* audioListWindow = gtk_frame_new("Audio Sources/Outputs");
     gtk_box_pack_start(GTK_BOX(viewBox),audioListWindow,FALSE,FALSE,0);
 
+    //audio list window box contains table and add/remove buttons
     GtkWidget* audioListWindowBox = gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
     gtk_container_add(GTK_CONTAINER(audioListWindow),audioListWindowBox);
 
-
-    //buttons
     GtkWidget* audioListButtons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
     gtk_box_pack_start(GTK_BOX(audioListWindowBox),audioListButtons,FALSE,FALSE,0);
 
     GtkWidget* audioListNewItem = gtk_button_new_from_icon_name("list-add",GTK_ICON_SIZE_BUTTON);
     gtk_box_pack_start(GTK_BOX(audioListButtons),audioListNewItem,FALSE,FALSE,0);
-    //g_signal_connect(G_OBJECT(simSettingFolderButton),"clicked",G_CALLBACK(folderUpdate),NULL);
+    //g_signal_connect(G_OBJECT(audioListNewItem),"clicked",G_CALLBACK(folderUpdate),NULL);
 
     GtkWidget* audioListRemoveItem = gtk_button_new_from_icon_name("list-remove",GTK_ICON_SIZE_BUTTON);
     gtk_box_pack_start(GTK_BOX(audioListButtons),audioListRemoveItem,FALSE,FALSE,0);
-    //g_signal_connect(G_OBJECT(simSettingFolderButton),"clicked",G_CALLBACK(folderUpdate),NULL);
-
-
+    //g_signal_connect(G_OBJECT(audioListRemoveItem),"clicked",G_CALLBACK(folderUpdate),NULL);
 
     GtkWidget* sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_box_pack_start(GTK_BOX(audioListWindowBox),sep,FALSE,FALSE,0);
 
-
-
-    //view widget
+    //view list
+    audioListStore = gtk_list_store_new(N_COLUMNS,G_TYPE_STRING,G_TYPE_BOOLEAN,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT,G_TYPE_STRING);
     GtkWidget* audioListView = gtk_tree_view_new_with_model(GTK_TREE_MODEL(audioListStore));
     gtk_box_pack_start(GTK_BOX(audioListWindowBox),audioListView,TRUE,TRUE,0);
 
-    GtkCellRenderer* textRenderer = gtk_cell_renderer_text_new();
+    GtkCellRenderer* renderer;
 
-    GtkTreeViewColumn* columnName = gtk_tree_view_column_new_with_attributes("Name",textRenderer,"text",COLUMN_NAME,NULL);
-    gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnName);
+    renderer = gtk_cell_renderer_pixbuf_new();
+    GtkTreeViewColumn* columnIcon = gtk_tree_view_column_new();
+    //gtk_tree_view_column_set_title(GTK_TREE_VIEW_COLUMN(columnIcon),"Type");
+    gtk_tree_view_column_pack_start(columnIcon,renderer,FALSE);
+    gtk_tree_view_column_set_attributes(columnIcon,renderer,"icon-name",COLUMN_ICON,NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnIcon);
 
-    GtkTreeViewColumn* columnX = gtk_tree_view_column_new_with_attributes("X",textRenderer,"text",COLUMN_X,NULL);
+    renderer = gtk_cell_renderer_text_new();
+    GtkTreeViewColumn* columnX = gtk_tree_view_column_new_with_attributes("X",renderer,"text",COLUMN_X,NULL);
     gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnX);
 
-    GtkTreeViewColumn* columnY = gtk_tree_view_column_new_with_attributes("Y",textRenderer,"text",COLUMN_Y,NULL);
+    renderer = gtk_cell_renderer_text_new();
+    GtkTreeViewColumn* columnY = gtk_tree_view_column_new_with_attributes("Y",renderer,"text",COLUMN_Y,NULL);
     gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnY);
 
-    GtkTreeViewColumn* columnZ = gtk_tree_view_column_new_with_attributes("Z",textRenderer,"text",COLUMN_Z,NULL);
+    renderer = gtk_cell_renderer_text_new();
+    GtkTreeViewColumn* columnZ = gtk_tree_view_column_new_with_attributes("Z",renderer,"text",COLUMN_Z,NULL);
     gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnZ);
 
-
-
-
-
-
-
-
+    renderer = gtk_cell_renderer_text_new();
+    GtkTreeViewColumn* columnName = gtk_tree_view_column_new_with_attributes("Name",renderer,"text",COLUMN_NAME,NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(audioListView),columnName);
 
 
 
@@ -729,6 +822,8 @@ int main(int argc,char *argv[]){
     cursorButtonZ = gtk_spin_button_new_with_range(0,gridDepth-1,1);
     gtk_box_pack_start(GTK_BOX(cursorBar),cursorButtonZ,TRUE,TRUE,0);
     g_signal_connect(G_OBJECT(cursorButtonZ),"value-changed",G_CALLBACK(cursorButtonZUpdate),NULL);
+
+
 
     fileOpenUpdate(FALSE);
     fileSavedUpdate(FALSE);
