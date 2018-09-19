@@ -131,6 +131,7 @@ char *readAudioLedgerLine(FILE *file,int *x,int *y,int *z){
     }
 }
 
+//helper function to write a line to an audio ledger file
 void writeAudioLedgerLine(FILE *file,const char *name,int x,int y,int z){
     fprintf(file,"%s %d %d %d\n",name,x,y,z);
 }
@@ -274,25 +275,24 @@ int main(int argc, const char * argv[]){
         
         int index;
         coord pos;
-        char *audioFileName;
+        char *audioFilePath;
 
         //load the next line from the audio ledger and continue if it's not NULL
-        while((audioFileName = readAudioLedgerLine(audioSourceLedgerFile,&pos.x,&pos.y,&pos.z))!=NULL){
+        while((audioFilePath = readAudioLedgerLine(audioSourceLedgerFile,&pos.x,&pos.y,&pos.z))!=NULL){
             index = audioSourceCount;
             audioSourceCount++;
 
             //load file
             audioSourceFiles = (audioFile *)realloc(audioSourceFiles,audioSourceCount*sizeof(audioFile));
 
-            std::string audioFilePath = inFolder+"/"+audioFileName;
-            audioSourceFiles[index].file = sf_open(audioFilePath.c_str(),SFM_READ,&audioSourceFiles[index].info);
+            audioSourceFiles[index].file = sf_open(audioFilePath,SFM_READ,&audioSourceFiles[index].info);
 
             //load pos
             audioSourcePos_h = (coord *)realloc(audioSourcePos_h,audioSourceCount*sizeof(coord));
             audioSourcePos_h[index] = pos;
 
             //print for debugging purposes
-            printf("    Loading audio source: %s... ",audioFileName);
+            printf("    Loading audio source: %s... ",audioFilePath);
 
             if(sf_error(audioSourceFiles[index].file)==SF_ERR_NO_ERROR){
                 if(audioSourceFiles[index].info.channels!=1){
@@ -310,7 +310,7 @@ int main(int argc, const char * argv[]){
                 printf("Could not load file\n");
             }
 
-            free(audioFileName);
+            free(audioFilePath);
         }
 
         fclose(audioSourceLedgerFile);

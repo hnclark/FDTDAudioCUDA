@@ -1,1 +1,1 @@
-test.wav 3 3 3
+/home/papa/cuda-workspace/FDTDAudioCUDA/input/test.wav 3 3 3
