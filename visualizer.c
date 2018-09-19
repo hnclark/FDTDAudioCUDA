@@ -411,7 +411,6 @@ void loadFolder(char *inFolder){
         free(inFile);
     }
 
-
     if(audioOutputLedgerFile!=NULL){   
         int x,y,z;
         char *audioFileName;
@@ -482,8 +481,50 @@ void loadFolder(char *inFolder){
 }
 
 void saveFolder(char *outFolder){
-    FILE *outGridFile;
+    //open audio ledger
+    FILE *audioLedgerFile = NULL;
+    FILE *audioOutputLedgerFile = NULL;
+    if(outFolder!=NULL){
+        char *ledgerFile = (char *)calloc(strlen(outFolder)+strlen(AUDIO_LEDGER_NAME)+2, sizeof(char));
+        strcpy(ledgerFile,outFolder);
+        strcat(ledgerFile,"/");
+        strcat(ledgerFile,AUDIO_LEDGER_NAME);
 
+        audioLedgerFile = fopen(ledgerFile,"w");
+        free(ledgerFile);
+
+        char *ledgerOutputFile = (char *)calloc(strlen(outFolder)+strlen(AUDIO_OUT_LEDGER_NAME)+2, sizeof(char));
+        strcpy(ledgerOutputFile,outFolder);
+        strcat(ledgerOutputFile,"/");
+        strcat(ledgerOutputFile,AUDIO_OUT_LEDGER_NAME);
+
+        audioOutputLedgerFile = fopen(ledgerOutputFile,"w");
+        free(ledgerOutputFile);
+    }
+
+    if(audioLedgerFile!=NULL && audioOutputLedgerFile!=NULL){
+        GtkTreeIter iter;
+        if(gtk_tree_model_get_iter_first(GTK_TREE_MODEL(audioListStore),&iter)){
+            do{
+                gboolean source;
+                int x,y,z;
+                char *name;
+                gtk_tree_model_get(GTK_TREE_MODEL(audioListStore),&iter,COLUMN_SOURCE,&source,COLUMN_X,&x,COLUMN_Y,&y,COLUMN_Z,&z,COLUMN_NAME,&name,-1);
+
+                if(source){
+                    writeAudioLedgerLine(audioLedgerFile,name,x,y,z);
+                }else{
+                    writeAudioLedgerLine(audioOutputLedgerFile,name,x,y,z);
+                }
+                free(name);
+            }while(gtk_tree_model_iter_next(GTK_TREE_MODEL(audioListStore),&iter));
+        }
+
+        fclose(audioLedgerFile);
+        fclose(audioOutputLedgerFile);
+    }
+
+    FILE *outGridFile;
     if(outFolder!=NULL){
         char *outFile = (char *)calloc(strlen(outFolder)+strlen(SIM_STATE_NAME)+2, sizeof(char));
         strcpy(outFile,outFolder);
@@ -492,6 +533,7 @@ void saveFolder(char *outFolder){
         outGridFile = fopen(outFile,"wb");
         free(outFile);
     }
+
     if(outGridFile!=NULL){
         writeHeaderBinary(outGridFile,&gridWidth,&gridHeight,&gridDepth);
         writeDoublesBinary(outGridFile,grid,gridArea);
