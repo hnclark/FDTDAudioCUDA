@@ -4,7 +4,4 @@ TODO:
 
 -create icon for visualizer
 
--update visualizer to use symbolic icons
-
 -simulator could use getopt to check command line inputs. and should use the flags indicated in the visualizer.c header
-

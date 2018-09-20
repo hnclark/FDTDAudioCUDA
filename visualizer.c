@@ -194,7 +194,7 @@ char *appendCommandLineFlag(char *command,char *flag,char *val){
     strcat(command,flag);
     strcat(command,FLAG_BACK);
     strcat(command,val);
-    
+
     return command;
 }
 
@@ -637,7 +637,7 @@ void saveAndRunItemFunction(){
 
     if(fileSaved){
         //prompt user to choose basic settings
-        GtkWidget* settingDialog = gtk_dialog_new_with_buttons("Simulation Settings",GTK_WINDOW(window),GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,"Cancel",GTK_RESPONSE_CANCEL,"Run",GTK_RESPONSE_ACCEPT,NULL);
+        GtkWidget* settingDialog = gtk_dialog_new_with_buttons("Simulation Settings",GTK_WINDOW(window),0,"Cancel",GTK_RESPONSE_CANCEL,"Run",GTK_RESPONSE_ACCEPT,NULL);
         GtkWidget* settingDialogOptionBox = gtk_dialog_get_content_area(GTK_DIALOG(settingDialog));
 
         //the output folder settings
@@ -648,7 +648,7 @@ void saveAndRunItemFunction(){
         GtkWidget* simSettingFolderBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
         gtk_container_add(GTK_CONTAINER(simSettingFolderFrame),simSettingFolderBox);
 
-        simSettingFolderButton = gtk_button_new_from_icon_name("folder-new",GTK_ICON_SIZE_BUTTON);
+        simSettingFolderButton = gtk_button_new_from_icon_name("document-open-symbolic",GTK_ICON_SIZE_BUTTON);
         gtk_box_pack_start(GTK_BOX(simSettingFolderBox),simSettingFolderButton,FALSE,FALSE,0);
         g_signal_connect(G_OBJECT(simSettingFolderButton),"clicked",G_CALLBACK(folderUpdate),NULL);
 
@@ -871,7 +871,7 @@ int main(int argc,char *argv[]){
     gtk_box_pack_start(GTK_BOX(audioListButtons),audioListNewOutputItem,FALSE,FALSE,0);
     g_signal_connect(G_OBJECT(audioListNewOutputItem),"clicked",G_CALLBACK(audioListNewOutputItemFunction),NULL);
 
-    audioListRemoveItem = gtk_button_new_from_icon_name("list-remove",GTK_ICON_SIZE_BUTTON);
+    audioListRemoveItem = gtk_button_new_from_icon_name("edit-delete-symbolic",GTK_ICON_SIZE_BUTTON);
     gtk_box_pack_start(GTK_BOX(audioListButtons),audioListRemoveItem,FALSE,FALSE,0);
     g_signal_connect(G_OBJECT(audioListRemoveItem),"clicked",G_CALLBACK(audioListRemoveItemFunction),NULL);
 
