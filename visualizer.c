@@ -189,12 +189,12 @@ void writeAudioLedgerLine(FILE *file,const char *name,int x,int y,int z){
 
 //helper function to append command line flags to commands
 char *appendCommandLineFlag(char *command,char *flag,char *val){
-    command = (char *)realloc(command,(strlen(command)+strlen(FLAG_FRONT)+strlen(flag)+strlen(FLAG_BACK)+strlen(val))*sizeof(char));
+    command = (char *)realloc(command,(strlen(command)+strlen(FLAG_FRONT)+strlen(flag)+strlen(FLAG_BACK)+strlen(val)+1)*sizeof(char));
     strcat(command,FLAG_FRONT);
     strcat(command,flag);
     strcat(command,FLAG_BACK);
     strcat(command,val);
-
+    
     return command;
 }
 
@@ -474,13 +474,11 @@ void loadFolder(char *inFolder){
         fileSavedUpdate(TRUE);
     }
 
-    free(gridImageData);
-    gridImageData = (guchar *)malloc(gridSize*SAMPLES_PER_PIXEL*sizeof(guchar));
+    gridImageData = (guchar *)realloc(gridImageData,gridSize*SAMPLES_PER_PIXEL*sizeof(guchar));
 
     doublesToGuchar(grid,gridImageData,gridArea);
 
-    free(gridPixbufs);
-    gridPixbufs = (GdkPixbuf **)malloc(gridDepth*sizeof(GdkPixbuf *));
+    gridPixbufs = (GdkPixbuf **)realloc(gridPixbufs,gridDepth*sizeof(GdkPixbuf *));
 
     gucharToPixbufs(gridImageData,gridPixbufs,gridWidth,gridHeight,gridDepth);
     imageRatio = (double)gridWidth/(double)gridHeight;
@@ -699,7 +697,7 @@ void saveAndRunItemFunction(){
         gtk_widget_show_all(settingDialog);
 
         if(gtk_dialog_run(GTK_DIALOG(settingDialog))==GTK_RESPONSE_ACCEPT){
-            char *runCommand = (char *)malloc(strlen(BASE_COMMAND)*sizeof(char));
+            char *runCommand = (char *)malloc((strlen(BASE_COMMAND)+1)*sizeof(char));
             strcpy(runCommand,BASE_COMMAND);
 
             if(currentInFolder!=NULL){
@@ -715,6 +713,7 @@ void saveAndRunItemFunction(){
 
                 runCommand = appendCommandLineFlag(runCommand,TIMESTEP_FLAG,intStr);
             }
+            
             if(blockWidth && blockHeight && blockDepth){
                 int len = snprintf(NULL,0,"%d %d %d",blockWidth,blockHeight,blockDepth);
                 char* intStr = (char *)malloc(len+1);
@@ -731,6 +730,8 @@ void saveAndRunItemFunction(){
 
             g_print("---\n");
             
+            free(runCommand);
+
             //load folder of output
             loadFolder(currentOutFolder);
         }
