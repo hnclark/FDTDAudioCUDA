@@ -110,6 +110,11 @@ GtkWidget* simSettingBlockDepth;
 
 //list store stuff
 GtkListStore* audioListStore;
+GtkWidget* audioListView;
+
+GtkWidget* audioListNewSourceItem;
+GtkWidget* audioListNewOutputItem;
+GtkWidget* audioListRemoveItem;
 
 //indicates whether a file is currently completely loaded into memory. Don't redraw stuff if one isn't
 gboolean fileOpen;
@@ -254,6 +259,16 @@ void updateDisplayImage(){
 
 
 
+void audioListCursorUpdate(){
+    GtkTreeSelection* selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(audioListView));
+
+    if(gtk_tree_selection_count_selected_rows(selection)){
+        gtk_widget_set_sensitive(audioListRemoveItem,TRUE);
+    }else{
+        gtk_widget_set_sensitive(audioListRemoveItem,FALSE);
+    }
+}
+
 void fileSavedUpdate(gboolean val){
     fileSaved = val;
 }
@@ -264,6 +279,13 @@ void fileOpenUpdate(gboolean val){
     //enable/disable save widgets based on whether a file is open or not
     gtk_widget_set_sensitive(saveItem,val);
     gtk_widget_set_sensitive(saveAndRunItem,val);
+
+    gtk_widget_set_sensitive(audioListNewSourceItem,val);
+    gtk_widget_set_sensitive(audioListNewOutputItem,val);
+
+    //just disable remove item widget(until a new selection is made)
+    gtk_widget_set_sensitive(audioListRemoveItem,FALSE);
+    
 }
 
 void gridSizeXUpdate(){
@@ -352,12 +374,12 @@ void audioListStoreAppend(gboolean source,int x,int y,int z,char *name){
     fileSavedUpdate(FALSE);
 }
 
-void audioListStoreRemove(int row){
+void audioListStoreRemoveSelected(){
     GtkTreeIter iter;
-    if(gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(audioListStore),&iter,NULL,row)){
-        gtk_list_store_remove(audioListStore,&iter);
-        fileSavedUpdate(FALSE);
-    }
+    GtkTreeSelection* selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(audioListView));
+    gtk_tree_selection_get_selected(selection,NULL,&iter);
+    gtk_list_store_remove(audioListStore,&iter);
+    fileSavedUpdate(FALSE);
 }
 
 void audioListStoreClear(){
@@ -716,6 +738,24 @@ void saveAndRunItemFunction(){
     }
 }
 
+void audioListNewSourceItemFunction(){
+    g_print("Add a new audio source\n");
+
+    //TODO:
+    //prompt user to select folder to open
+    //GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Audio File",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,NULL);
+    //use audioListStoreAppend to add it
+}
+
+void audioListNewOutputItemFunction(){
+    g_print("Add a new audio output\n");
+    //TODO:
+    //prompt user to type in the name of the output + use audioListStoreAppend to add it
+}
+
+void audioListRemoveItemFunction(){
+    audioListStoreRemoveSelected();
+}
 
 
 int main(int argc,char *argv[]){
@@ -731,7 +771,7 @@ int main(int argc,char *argv[]){
     gtk_init(&argc,&argv);
     
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_default_size(GTK_WINDOW(window),600,400);
+    gtk_window_set_default_size(GTK_WINDOW(window),1200,600);
     gtk_window_set_title(GTK_WINDOW(window),"FDTDAudioCUDA Visualizer");
     g_signal_connect(G_OBJECT(window),"destroy",G_CALLBACK(gtk_main_quit),NULL);
 
@@ -807,21 +847,27 @@ int main(int argc,char *argv[]){
     GtkWidget* audioListButtons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
     gtk_box_pack_start(GTK_BOX(audioListWindowBox),audioListButtons,FALSE,FALSE,0);
 
-    GtkWidget* audioListNewItem = gtk_button_new_from_icon_name("list-add",GTK_ICON_SIZE_BUTTON);
-    gtk_box_pack_start(GTK_BOX(audioListButtons),audioListNewItem,FALSE,FALSE,0);
-    //g_signal_connect(G_OBJECT(audioListNewItem),"clicked",G_CALLBACK(folderUpdate),NULL);
+    audioListNewSourceItem = gtk_button_new_from_icon_name("audio-speakers-symbolic",GTK_ICON_SIZE_BUTTON);
+    gtk_box_pack_start(GTK_BOX(audioListButtons),audioListNewSourceItem,FALSE,FALSE,0);
+    g_signal_connect(G_OBJECT(audioListNewSourceItem),"clicked",G_CALLBACK(audioListNewSourceItemFunction),NULL);
 
-    GtkWidget* audioListRemoveItem = gtk_button_new_from_icon_name("list-remove",GTK_ICON_SIZE_BUTTON);
+    audioListNewOutputItem = gtk_button_new_from_icon_name("audio-input-microphone-symbolic",GTK_ICON_SIZE_BUTTON);
+    gtk_box_pack_start(GTK_BOX(audioListButtons),audioListNewOutputItem,FALSE,FALSE,0);
+    g_signal_connect(G_OBJECT(audioListNewOutputItem),"clicked",G_CALLBACK(audioListNewOutputItemFunction),NULL);
+
+    audioListRemoveItem = gtk_button_new_from_icon_name("list-remove",GTK_ICON_SIZE_BUTTON);
     gtk_box_pack_start(GTK_BOX(audioListButtons),audioListRemoveItem,FALSE,FALSE,0);
-    //g_signal_connect(G_OBJECT(audioListRemoveItem),"clicked",G_CALLBACK(folderUpdate),NULL);
+    g_signal_connect(G_OBJECT(audioListRemoveItem),"clicked",G_CALLBACK(audioListRemoveItemFunction),NULL);
 
     GtkWidget* sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_box_pack_start(GTK_BOX(audioListWindowBox),sep,FALSE,FALSE,0);
 
     //view list
     audioListStore = gtk_list_store_new(N_COLUMNS,G_TYPE_STRING,G_TYPE_BOOLEAN,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT,G_TYPE_STRING);
-    GtkWidget* audioListView = gtk_tree_view_new_with_model(GTK_TREE_MODEL(audioListStore));
+
+    audioListView = gtk_tree_view_new_with_model(GTK_TREE_MODEL(audioListStore));
     gtk_box_pack_start(GTK_BOX(audioListWindowBox),audioListView,TRUE,TRUE,0);
+    g_signal_connect(G_OBJECT(audioListView),"cursor-changed",G_CALLBACK(audioListCursorUpdate),NULL);
 
     GtkCellRenderer* renderer;
 
