@@ -362,7 +362,7 @@ void folderUpdate(){
 
 
 
-void audioListStoreAppend(gboolean source,int x,int y,int z,char *name){
+void audioListStoreAppend(gboolean source,int x,int y,int z,const char *name){
     GtkTreeIter iter;
     gtk_list_store_append(audioListStore,&iter);
 
@@ -739,18 +739,33 @@ void saveAndRunItemFunction(){
 }
 
 void audioListNewSourceItemFunction(){
-    g_print("Add a new audio source\n");
-
-    //TODO:
-    //prompt user to select folder to open
-    //GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Audio File",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,NULL);
-    //use audioListStoreAppend to add it
+    //prompt user to name new audio file
+    GtkWidget* dialog = gtk_file_chooser_dialog_new("Select Audio Input File",GTK_WINDOW(window),GTK_FILE_CHOOSER_ACTION_OPEN,"Cancel",GTK_RESPONSE_CANCEL,"Add",GTK_RESPONSE_ACCEPT,NULL);
+    
+    if(gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_ACCEPT){
+        char *name = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        audioListStoreAppend(TRUE,cursorX,cursorY,cursorZ,name);
+    }
+    gtk_widget_destroy(dialog);
 }
 
 void audioListNewOutputItemFunction(){
-    g_print("Add a new audio output\n");
-    //TODO:
-    //prompt user to type in the name of the output + use audioListStoreAppend to add it
+    //prompt user to select audio file to open
+    GtkWidget* settingDialog = gtk_dialog_new_with_buttons("Set Audio Output Name",GTK_WINDOW(window),GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,"Cancel",GTK_RESPONSE_CANCEL,"Add",GTK_RESPONSE_ACCEPT,NULL);
+    GtkWidget* settingDialogOptionBox = gtk_dialog_get_content_area(GTK_DIALOG(settingDialog));
+    
+    GtkWidget* nameEntry = gtk_entry_new();
+    gtk_box_pack_start(GTK_BOX(settingDialogOptionBox),nameEntry,TRUE,TRUE,0);
+
+    gtk_window_set_resizable(GTK_WINDOW(settingDialog), FALSE);
+    
+    gtk_widget_show_all(settingDialog);
+    if(gtk_dialog_run(GTK_DIALOG(settingDialog))==GTK_RESPONSE_ACCEPT){
+        GtkEntryBuffer* nameEntryBuffer = gtk_entry_get_buffer(GTK_ENTRY(nameEntry));
+        const char *name = gtk_entry_buffer_get_text(nameEntryBuffer);
+        audioListStoreAppend(FALSE,cursorX,cursorY,cursorZ,name);
+    }
+    gtk_widget_destroy(settingDialog);
 }
 
 void audioListRemoveItemFunction(){

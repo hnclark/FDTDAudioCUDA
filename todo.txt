@@ -1,14 +1,10 @@
-REMINDER:
-
--all functions which modify the grid/audioledger/etc in visualizer should call fileSavedUpdate(FALSE)
-
 TODO:
-
--add audio sources and outputs to visualizer
 
 -implement new equation in simulator
 
 -create icon for visualizer
+
+-update visualizer to use symbolic icons
 
 -simulator could use getopt to check command line inputs. and should use the flags indicated in the visualizer.c header
 
